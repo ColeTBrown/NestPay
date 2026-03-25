@@ -1,3 +1,7 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {}
+const nextConfig = {
+  experimental: {
+    serverComponentsExternalPackages: ['stripe'],
+  },
+}
 module.exports = nextConfig
