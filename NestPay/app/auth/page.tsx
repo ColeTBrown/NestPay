@@ -8,6 +8,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState<'landlord' | 'tenant'>('tenant')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -18,9 +19,22 @@ export default function AuthPage() {
     setError('')
 
     if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({ email, password })
-      if (error) setError(error.message)
-      else setDone(true)
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { role }
+        }
+      })
+      if (error) {
+        setError(error.message)
+      } else if (data.user) {
+        await supabase.from('profiles').insert({
+          id: data.user.id,
+          role
+        })
+        setDone(true)
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setError(error.message)
@@ -75,6 +89,31 @@ export default function AuthPage() {
                   <label>Password</label>
                   <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
                 </div>
+
+                {mode === 'signup' && (
+                  <div className="field">
+                    <label>I am a...</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {(['tenant', 'landlord'] as const).map(r => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setRole(r)}
+                          className="btn"
+                          style={{
+                            flex: 1, justifyContent: 'center',
+                            background: role === r ? 'var(--bg3)' : 'transparent',
+                            color: role === r ? 'var(--text)' : 'var(--text2)',
+                            border: role === r ? '1px solid var(--accent)' : '1px solid var(--border)'
+                          }}
+                        >
+                          {r === 'tenant' ? '🏠 Tenant' : '🏢 Landlord'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 14 }}>{error}</p>}
                 <button className="btn btn-primary btn-full" type="submit" disabled={loading}>
                   {loading ? 'Please wait...' : mode === 'login' ? 'Log in' : 'Create account'}
