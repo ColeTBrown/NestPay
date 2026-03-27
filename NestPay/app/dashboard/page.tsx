@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'overview' | 'maintenance' | 'ai'>('overview')
+  const [tab, setTab] = useState<'overview' | 'properties' | 'maintenance' | 'ai'>('overview')
   const [landlordId, setLandlordId] = useState('')
   const [properties, setProperties] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
@@ -16,42 +16,95 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
 
+  // Property form state
+  const [showPropertyForm, setShowPropertyForm] = useState(false)
+  const [propertyForm, setPropertyForm] = useState({ name: '', address: '' })
+  const [propertyLoading, setPropertyLoading] = useState(false)
+  const [propertyError, setPropertyError] = useState('')
+
+  // Unit form state
+  const [showUnitForm, setShowUnitForm] = useState<string | null>(null) // holds property_id
+  const [unitForm, setUnitForm] = useState({ unit_number: '', monthly_rent: '' })
+  const [unitLoading, setUnitLoading] = useState(false)
+  const [unitError, setUnitError] = useState('')
+
+  async function loadData(lid: string) {
+    const { data: props } = await supabase
+      .from('properties')
+      .select('*, units(*, tenants(*), maintenance_requests(*))')
+      .eq('landlord_id', lid)
+    setProperties(props || [])
+
+    const unitIds = (props || []).flatMap((p: any) => p.units.map((u: any) => u.id))
+    if (unitIds.length > 0) {
+      const { data: pays } = await supabase
+        .from('payments')
+        .select('*, tenants(full_name), units(unit_number)')
+        .in('unit_id', unitIds)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      setPayments(pays || [])
+
+      const { data: reqs } = await supabase
+        .from('maintenance_requests')
+        .select('*, tenants(full_name), units(unit_number)')
+        .in('unit_id', unitIds)
+        .order('created_at', { ascending: false })
+      setRequests(reqs || [])
+    } else {
+      setPayments([])
+      setRequests([])
+    }
+  }
+
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/auth'); return }
       const lid = session.user.id
       setLandlordId(lid)
-
-      const { data: props } = await supabase
-        .from('properties')
-        .select('*, units(*, tenants(*), maintenance_requests(*))')
-        .eq('landlord_id', lid)
-      setProperties(props || [])
-
-      const unitIds = (props || []).flatMap((p: any) => p.units.map((u: any) => u.id))
-      if (unitIds.length > 0) {
-        const { data: pays } = await supabase
-          .from('payments')
-          .select('*, tenants(full_name), units(unit_number)')
-          .in('unit_id', unitIds)
-          .order('created_at', { ascending: false })
-          .limit(50)
-        setPayments(pays || [])
-
-        const { data: reqs } = await supabase
-          .from('maintenance_requests')
-          .select('*, tenants(full_name), units(unit_number)')
-          .in('unit_id', unitIds)
-          .order('created_at', { ascending: false })
-        setRequests(reqs || [])
-      }
-
+      await loadData(lid)
       setLoading(false)
       sendAI("Give me today's daily briefing for my properties.", lid, [])
     }
     load()
   }, [router])
+
+  async function addProperty() {
+    setPropertyLoading(true)
+    setPropertyError('')
+    const { error } = await supabase.from('properties').insert({
+      landlord_id: landlordId,
+      name: propertyForm.name.trim(),
+      address: propertyForm.address.trim(),
+    })
+    if (error) {
+      setPropertyError(error.message)
+    } else {
+      setShowPropertyForm(false)
+      setPropertyForm({ name: '', address: '' })
+      await loadData(landlordId)
+    }
+    setPropertyLoading(false)
+  }
+
+  async function addUnit(propertyId: string) {
+    setUnitLoading(true)
+    setUnitError('')
+    const { error } = await supabase.from('units').insert({
+      property_id: propertyId,
+      unit_number: unitForm.unit_number.trim(),
+      monthly_rent: parseFloat(unitForm.monthly_rent),
+    })
+    if (error) {
+      setUnitError(error.message)
+    } else {
+      setShowUnitForm(null)
+      setUnitForm({ unit_number: '', monthly_rent: '' })
+      await loadData(landlordId)
+    }
+    setUnitLoading(false)
+  }
 
   async function sendAI(msg: string, lid?: string, hist?: any[]) {
     const id = lid || landlordId
@@ -114,7 +167,7 @@ export default function DashboardPage() {
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 22, fontWeight: 500, marginBottom: 4 }}>Property dashboard</h1>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>
-            {properties.map((p: any) => p.name).join(', ') || 'No properties yet'} · {totalUnits} units
+            {properties.length === 0 ? 'No properties yet' : properties.map((p: any) => p.name).join(', ')} · {totalUnits} units
           </p>
         </div>
 
@@ -126,19 +179,116 @@ export default function DashboardPage() {
         </div>
 
         <div className="tabs">
-          {(['overview', 'maintenance', 'ai'] as const).map(t => (
+          {(['overview', 'properties', 'maintenance', 'ai'] as const).map(t => (
             <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'overview' ? 'Payments' : t === 'maintenance' ? 'Maintenance' : 'AI assistant'}
+              {t === 'overview' ? 'Payments' : t === 'properties' ? 'Properties' : t === 'maintenance' ? 'Maintenance' : 'AI assistant'}
             </button>
           ))}
         </div>
 
+        {/* PROPERTIES TAB */}
+        {tab === 'properties' && (
+          <div>
+            <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => setShowPropertyForm(true)}>
+              + Add property
+            </button>
+
+            {showPropertyForm && (
+              <div className="card" style={{ marginBottom: 20 }}>
+                <h3 style={{ fontWeight: 500, marginBottom: 16 }}>New property</h3>
+                <div className="field">
+                  <label>Property name</label>
+                  <input value={propertyForm.name} onChange={e => setPropertyForm({ ...propertyForm, name: e.target.value })} placeholder="e.g. Sunset Apartments" />
+                </div>
+                <div className="field">
+                  <label>Address</label>
+                  <input value={propertyForm.address} onChange={e => setPropertyForm({ ...propertyForm, address: e.target.value })} placeholder="e.g. 123 Main St, Boston MA" />
+                </div>
+                {propertyError && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{propertyError}</p>}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-primary" onClick={addProperty} disabled={propertyLoading || !propertyForm.name || !propertyForm.address}>
+                    {propertyLoading ? 'Saving...' : 'Save property'}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => { setShowPropertyForm(false); setPropertyForm({ name: '', address: '' }) }}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {properties.length === 0 && !showPropertyForm && (
+              <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🏢</div>
+                <p style={{ color: 'var(--text2)', fontSize: 14 }}>No properties yet. Add your first property to get started.</p>
+              </div>
+            )}
+
+            {properties.map((property: any) => (
+              <div key={property.id} className="card" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 16 }}>{property.name}</div>
+                    <div style={{ color: 'var(--text2)', fontSize: 13, marginTop: 2 }}>{property.address}</div>
+                  </div>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setShowUnitForm(property.id); setUnitError('') }}>
+                    + Add unit
+                  </button>
+                </div>
+
+                {showUnitForm === property.id && (
+                  <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                    <h4 style={{ fontWeight: 500, marginBottom: 12, fontSize: 14 }}>New unit</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="field">
+                        <label>Unit number</label>
+                        <input value={unitForm.unit_number} onChange={e => setUnitForm({ ...unitForm, unit_number: e.target.value })} placeholder="e.g. 2B" />
+                      </div>
+                      <div className="field">
+                        <label>Monthly rent ($)</label>
+                        <input type="number" value={unitForm.monthly_rent} onChange={e => setUnitForm({ ...unitForm, monthly_rent: e.target.value })} placeholder="e.g. 1500" />
+                      </div>
+                    </div>
+                    {unitError && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{unitError}</p>}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button className="btn btn-primary btn-sm" onClick={() => addUnit(property.id)} disabled={unitLoading || !unitForm.unit_number || !unitForm.monthly_rent}>
+                        {unitLoading ? 'Saving...' : 'Save unit'}
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setShowUnitForm(null); setUnitForm({ unit_number: '', monthly_rent: '' }) }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {property.units.length === 0 ? (
+                  <p style={{ color: 'var(--text2)', fontSize: 13 }}>No units yet.</p>
+                ) : (
+                  property.units.map((unit: any) => (
+                    <div key={unit.id} className="list-row">
+                      <div>
+                        <div className="row-title">Unit {unit.unit_number}</div>
+                        <div className="row-sub">
+                          ${Number(unit.monthly_rent).toLocaleString()}/mo
+                          {unit.tenants?.length > 0 ? ` · ${unit.tenants[0].full_name}` : ' · Vacant'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className={`tag ${unit.tenants?.length > 0 ? 'tag-paid' : 'tag-open'}`}>
+                          {unit.tenants?.length > 0 ? 'Occupied' : 'Vacant'}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--text3)' }}>Code: {unit.unit_number}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* PAYMENTS TAB */}
         {tab === 'overview' && (
           <div>
             <div className="label">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
             <div className="card">
               {payments.filter(p => p.payment_month === currentMonth).length === 0 && (
-                <p style={{ color: 'var(--text2)', fontSize: 14 }}>No payments recorded yet. Add tenants in Supabase to get started.</p>
+                <p style={{ color: 'var(--text2)', fontSize: 14 }}>No payments recorded yet. Add a property and units to get started.</p>
               )}
               {payments.filter(p => p.payment_month === currentMonth).map((p: any) => (
                 <div key={p.id} className="list-row">
@@ -160,6 +310,7 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* MAINTENANCE TAB */}
         {tab === 'maintenance' && (
           <div>
             <div className="label">Open requests</div>
@@ -195,6 +346,7 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* AI TAB */}
         {tab === 'ai' && (
           <div className="card">
             <div ref={chatRef} className="chat-thread" style={{ maxHeight: 480, overflowY: 'auto' }}>
