@@ -15,12 +15,12 @@ export default function Home() {
           router.replace('/auth')
         } else {
           supabase
-            .from('tenants')
-            .select('id')
-            .eq('user_id', data.session.user.id)
+            .from('profiles')
+            .select('role')
+            .eq('id', data.session.user.id)
             .maybeSingle()
-            .then(({ data: tenant }) => {
-              router.replace(tenant ? '/portal' : '/dashboard')
+            .then(({ data: profile }) => {
+              router.replace(profile?.role === 'tenant' ? '/portal' : '/dashboard')
             })
         }
       })
