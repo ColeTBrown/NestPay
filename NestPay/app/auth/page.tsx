@@ -3,12 +3,15 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+const LANDLORD_INVITE_CODE = 'NESTPAY-LANDLORD' // Change this to whatever you want
+
 export default function AuthPage() {
   const router = useRouter()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'landlord' | 'tenant'>('tenant')
+  const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -19,6 +22,13 @@ export default function AuthPage() {
     setError('')
 
     if (mode === 'signup') {
+      // Check invite code if signing up as landlord
+      if (role === 'landlord' && inviteCode !== LANDLORD_INVITE_CODE) {
+        setError('Invalid invite code for landlord signup.')
+        setLoading(false)
+        return
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -91,27 +101,45 @@ export default function AuthPage() {
                 </div>
 
                 {mode === 'signup' && (
-                  <div className="field">
-                    <label>I am a...</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {(['tenant', 'landlord'] as const).map(r => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setRole(r)}
-                          className="btn"
-                          style={{
-                            flex: 1, justifyContent: 'center',
-                            background: role === r ? 'var(--bg3)' : 'transparent',
-                            color: role === r ? 'var(--text)' : 'var(--text2)',
-                            border: role === r ? '1px solid var(--accent)' : '1px solid var(--border)'
-                          }}
-                        >
-                          {r === 'tenant' ? '🏠 Tenant' : '🏢 Landlord'}
-                        </button>
-                      ))}
+                  <>
+                    <div className="field">
+                      <label>I am a...</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {(['tenant', 'landlord'] as const).map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setRole(r)}
+                            className="btn"
+                            style={{
+                              flex: 1, justifyContent: 'center',
+                              background: role === r ? 'var(--bg3)' : 'transparent',
+                              color: role === r ? 'var(--text)' : 'var(--text2)',
+                              border: role === r ? '1px solid var(--accent)' : '1px solid var(--border)'
+                            }}
+                          >
+                            {r === 'tenant' ? '🏠 Tenant' : '🏢 Landlord'}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+
+                    {role === 'landlord' && (
+                      <div className="field">
+                        <label>Landlord Invite Code</label>
+                        <input
+                          type="text"
+                          value={inviteCode}
+                          onChange={e => setInviteCode(e.target.value)}
+                          placeholder="Enter invite code"
+                          required
+                        />
+                        <p style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>
+                          Contact NestPay to get an invite code.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 14 }}>{error}</p>}
