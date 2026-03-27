@@ -50,6 +50,97 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
   )
 }
 
+// Onboarding form shown to tenants who haven't set up their profile yet
+function OnboardingForm({ userId, email, onComplete }: { userId: string, email: string, onComplete: () => void }) {
+  const [fullName, setFullName] = useState('')
+  const [unitCode, setUnitCode] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    // Look up the unit by unit code (unit_number)
+    const { data: unit, error: unitError } = await supabase
+      .from('units')
+      .select('id, unit_number, monthly_rent, properties(name)')
+      .eq('unit_number', unitCode.trim())
+      .maybeSingle()
+
+    if (unitError || !unit) {
+      setError('Unit not found. Please check your unit code with your landlord.')
+      setLoading(false)
+      return
+    }
+
+    // Insert into tenants table
+    const { error: insertError } = await supabase
+      .from('tenants')
+      .insert({
+        user_id: userId,
+        unit_id: unit.id,
+        full_name: fullName.trim(),
+        email: email,
+      })
+
+    if (insertError) {
+      setError(insertError.message)
+      setLoading(false)
+      return
+    }
+
+    onComplete()
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: '400px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>Nest<span>Pay</span></div>
+          <p style={{ color: 'var(--text2)', fontSize: 14 }}>Let's get your account set up</p>
+        </div>
+        <div className="card">
+          <h2 style={{ fontWeight: 500, fontSize: 18, marginBottom: 4 }}>Welcome! 👋</h2>
+          <p style={{ color: 'var(--text2)', fontSize: 14, marginBottom: 24 }}>
+            Fill in your details to get started. Ask your landlord for your unit code.
+          </p>
+          <form onSubmit={handleSubmit}>
+            <div className="field">
+              <label>Full name</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                placeholder="Alex Smith"
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Unit code</label>
+              <input
+                type="text"
+                value={unitCode}
+                onChange={e => setUnitCode(e.target.value)}
+                placeholder="e.g. 2B"
+                required
+              />
+              <p style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>
+                Your landlord will give you this code.
+              </p>
+            </div>
+            {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 14 }}>{error}</p>}
+            <button className="btn btn-primary btn-full" type="submit" disabled={loading}>
+              {loading ? 'Setting up...' : 'Get started'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PortalPage() {
   const router = useRouter()
   const [tab, setTab] = useState<'pay' | 'maintenance' | 'history'>('pay')
@@ -62,36 +153,49 @@ export default function PortalPage() {
   const [showRequestForm, setShowRequestForm] = useState(false)
   const [reqForm, setReqForm] = useState({ title: '', category: 'general', priority: 'normal', description: '' })
   const [loading, setLoading] = useState(true)
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
+  const [userId, setUserId] = useState('')
+  const [userEmail, setUserEmail] = useState('')
+
+  async function loadTenantData(uid: string) {
+    const { data: t } = await supabase
+      .from('tenants')
+      .select('*, units(*, properties(name))')
+      .eq('user_id', uid)
+      .single()
+
+    if (!t) {
+      setNeedsOnboarding(true)
+      setLoading(false)
+      return
+    }
+
+    setTenant(t)
+    setUnit(t.units)
+
+    const { data: p } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('tenant_id', t.id)
+      .order('created_at', { ascending: false })
+    setPayments(p || [])
+
+    const { data: r } = await supabase
+      .from('maintenance_requests')
+      .select('*')
+      .eq('tenant_id', t.id)
+      .order('created_at', { ascending: false })
+    setRequests(r || [])
+    setLoading(false)
+  }
 
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/auth'); return }
-
-      const { data: t } = await supabase
-        .from('tenants')
-        .select('*, units(*, properties(name))')
-        .eq('user_id', session.user.id)
-        .single()
-
-      if (!t) { router.push('/auth'); return }
-      setTenant(t)
-      setUnit(t.units)
-
-      const { data: p } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('tenant_id', t.id)
-        .order('created_at', { ascending: false })
-      setPayments(p || [])
-
-      const { data: r } = await supabase
-        .from('maintenance_requests')
-        .select('*')
-        .eq('tenant_id', t.id)
-        .order('created_at', { ascending: false })
-      setRequests(r || [])
-      setLoading(false)
+      setUserId(session.user.id)
+      setUserEmail(session.user.email || '')
+      await loadTenantData(session.user.id)
     }
     load()
   }, [router])
@@ -130,6 +234,19 @@ export default function PortalPage() {
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: 'var(--text2)' }}>Loading...</div>
+  )
+
+  // Show onboarding form if tenant hasn't set up their profile yet
+  if (needsOnboarding) return (
+    <OnboardingForm
+      userId={userId}
+      email={userEmail}
+      onComplete={() => {
+        setNeedsOnboarding(false)
+        setLoading(true)
+        loadTenantData(userId)
+      }}
+    />
   )
 
   return (
