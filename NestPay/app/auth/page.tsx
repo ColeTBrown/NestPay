@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-const LANDLORD_INVITE_CODE = 'Suck-My-Dick' // Change this to whatever you want
+const LANDLORD_INVITE_CODE = 'Suck-My-Dick2' // Change this to whatever you want
 
 export default function AuthPage() {
   const router = useRouter()
