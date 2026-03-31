@@ -50,7 +50,6 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
   )
 }
 
-// Onboarding form shown to tenants who haven't set up their profile yet
 function OnboardingForm({ userId, email, onComplete }: { userId: string, email: string, onComplete: () => void }) {
   const [fullName, setFullName] = useState('')
   const [unitCode, setUnitCode] = useState('')
@@ -62,7 +61,6 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
     setLoading(true)
     setError('')
 
-    // Look up the unit by unit code (unit_number)
     const { data: unit, error: unitError } = await supabase
       .from('units')
       .select('id, unit_number, monthly_rent, properties(name)')
@@ -75,7 +73,6 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
       return
     }
 
-    // Insert into tenants table
     const { error: insertError } = await supabase
       .from('tenants')
       .insert({
@@ -98,7 +95,7 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>Nest<span>Pay</span></div>
+          <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>Nest<span>Bridge</span></div>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Let's get your account set up</p>
         </div>
         <div className="card">
@@ -109,26 +106,12 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label>Full name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                placeholder="Alex Smith"
-                required
-              />
+              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Alex Smith" required />
             </div>
             <div className="field">
               <label>Unit code</label>
-              <input
-                type="text"
-                value={unitCode}
-                onChange={e => setUnitCode(e.target.value)}
-                placeholder="e.g. 2B"
-                required
-              />
-              <p style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>
-                Your landlord will give you this code.
-              </p>
+              <input type="text" value={unitCode} onChange={e => setUnitCode(e.target.value)} placeholder="e.g. 2B" required />
+              <p style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>Your landlord will give you this code.</p>
             </div>
             {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 14 }}>{error}</p>}
             <button className="btn btn-primary btn-full" type="submit" disabled={loading}>
@@ -236,7 +219,6 @@ export default function PortalPage() {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: 'var(--text2)' }}>Loading...</div>
   )
 
-  // Show onboarding form if tenant hasn't set up their profile yet
   if (needsOnboarding) return (
     <OnboardingForm
       userId={userId}
@@ -252,7 +234,7 @@ export default function PortalPage() {
   return (
     <>
       <div className="topbar">
-        <div className="logo">Nest<span>Pay</span></div>
+        <div className="logo">Nest<span>Bridge</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontSize: 13, color: 'var(--text2)' }}>{tenant?.full_name}</span>
           <button className="btn btn-ghost btn-sm" onClick={() => supabase.auth.signOut().then(() => router.push('/auth'))}>Sign out</button>
@@ -307,7 +289,7 @@ export default function PortalPage() {
                 </p>
                 <Elements
                   stripe={stripePromise}
-                  options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#635bff' } } }}
+                  options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#38BDF8' } } }}
                 >
                   <PaymentForm onSuccess={() => setPaySuccess(true)} />
                 </Elements>
