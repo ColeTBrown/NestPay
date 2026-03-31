@@ -32,13 +32,13 @@ export default function Home() {
   if (error) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', gap: 12 }}>
       <div style={{ color: '#fc6b6b', fontSize: 14 }}>Error: {error}</div>
-      <a href="/auth" style={{ color: '#635bff', fontSize: 14 }}>Go to login</a>
+      <a href="/auth" style={{ color: 'var(--accent)', fontSize: 14 }}>Go to login</a>
     </div>
   )
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <div style={{ color: '#8892a4', fontSize: 14 }}>Loading NestPay...</div>
+      <div style={{ color: 'var(--text2)', fontSize: 14 }}>Loading NestBridge...</div>
     </div>
   )
 }
