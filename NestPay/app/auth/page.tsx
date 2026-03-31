@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-const LANDLORD_INVITE_CODE = 'Suck-My-Dick2' // Change this to whatever you want
+const LANDLORD_INVITE_CODE = 'NESTPAY-LANDLORD' // Change this to whatever you want
 
 export default function AuthPage() {
   const router = useRouter()
@@ -22,7 +22,6 @@ export default function AuthPage() {
     setError('')
 
     if (mode === 'signup') {
-      // Check invite code if signing up as landlord
       if (role === 'landlord' && inviteCode !== LANDLORD_INVITE_CODE) {
         setError('Invalid invite code for landlord signup.')
         setLoading(false)
@@ -32,17 +31,12 @@ export default function AuthPage() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: { role }
-        }
+        options: { data: { role } }
       })
       if (error) {
         setError(error.message)
       } else if (data.user) {
-        await supabase.from('profiles').insert({
-          id: data.user.id,
-          role
-        })
+        await supabase.from('profiles').insert({ id: data.user.id, role })
         setDone(true)
       }
     } else {
@@ -58,9 +52,9 @@ export default function AuthPage() {
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>
-            Nest<span>Pay</span>
+            Nest<span>Bridge</span>
           </div>
-          <p style={{ color: 'var(--text2)', fontSize: 14 }}>Property management & rent payments</p>
+          <p style={{ color: 'var(--text2)', fontSize: 14 }}>Modern property management & rent payments</p>
         </div>
 
         <div className="card">
@@ -135,7 +129,7 @@ export default function AuthPage() {
                           required
                         />
                         <p style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>
-                          Contact NestPay to get an invite code.
+                          Contact NestBridge to get an invite code.
                         </p>
                       </div>
                     )}
