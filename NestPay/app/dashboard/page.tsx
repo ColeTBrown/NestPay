@@ -16,14 +16,12 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
 
-  // Property form state
   const [showPropertyForm, setShowPropertyForm] = useState(false)
   const [propertyForm, setPropertyForm] = useState({ name: '', address: '' })
   const [propertyLoading, setPropertyLoading] = useState(false)
   const [propertyError, setPropertyError] = useState('')
 
-  // Unit form state
-  const [showUnitForm, setShowUnitForm] = useState<string | null>(null) // holds property_id
+  const [showUnitForm, setShowUnitForm] = useState<string | null>(null)
   const [unitForm, setUnitForm] = useState({ unit_number: '', monthly_rent: '' })
   const [unitLoading, setUnitLoading] = useState(false)
   const [unitError, setUnitError] = useState('')
@@ -156,7 +154,7 @@ export default function DashboardPage() {
   return (
     <>
       <div className="topbar">
-        <div className="logo">Nest<span>Pay</span></div>
+        <div className="logo">Nest<span>Bridge</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontSize: 13, color: 'var(--text2)' }}>Landlord</span>
           <button className="btn btn-ghost btn-sm" onClick={() => supabase.auth.signOut().then(() => router.push('/auth'))}>Sign out</button>
@@ -186,7 +184,6 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* PROPERTIES TAB */}
         {tab === 'properties' && (
           <div>
             <button className="btn btn-primary" style={{ marginBottom: 20 }} onClick={() => setShowPropertyForm(true)}>
@@ -282,7 +279,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* PAYMENTS TAB */}
         {tab === 'overview' && (
           <div>
             <div className="label">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
@@ -310,7 +306,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* MAINTENANCE TAB */}
         {tab === 'maintenance' && (
           <div>
             <div className="label">Open requests</div>
@@ -346,7 +341,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* AI TAB */}
         {tab === 'ai' && (
           <div className="card">
             <div ref={chatRef} className="chat-thread" style={{ maxHeight: 480, overflowY: 'auto' }}>
