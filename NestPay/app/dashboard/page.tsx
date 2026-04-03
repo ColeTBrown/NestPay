@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [aiInput, setAiInput] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
+  const [qbConnected, setQbConnected] = useState(false)
 
   const [showPropertyForm, setShowPropertyForm] = useState(false)
   const [propertyForm, setPropertyForm] = useState({ name: '', address: '' })
@@ -55,6 +56,15 @@ export default function DashboardPage() {
     }
   }
 
+  async function checkQBConnection() {
+    const { data } = await supabase
+      .from('quickbooks_tokens')
+      .select('realm_id')
+      .limit(1)
+      .single()
+    setQbConnected(!!data)
+  }
+
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -62,6 +72,7 @@ export default function DashboardPage() {
       const lid = session.user.id
       setLandlordId(lid)
       await loadData(lid)
+      await checkQBConnection()
       setLoading(false)
       sendAI("Give me today's daily briefing for my properties.", lid, [])
     }
@@ -281,6 +292,33 @@ export default function DashboardPage() {
 
         {tab === 'overview' && (
           <div>
+            {/* QuickBooks Integration Banner */}
+            <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22 }}>📊</span>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>QuickBooks</div>
+                  <div style={{ color: 'var(--text2)', fontSize: 13 }}>
+                    {qbConnected ? 'Payments auto-sync to QuickBooks as income entries' : 'Connect to auto-sync rent payments as income'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {qbConnected && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4ade80', fontSize: 13, fontWeight: 500 }}>
+                    <span style={{ width: 8, height: 8, background: '#4ade80', borderRadius: '50%', display: 'inline-block' }}></span>
+                    Connected
+                  </span>
+                )}
+                <button
+                  className={qbConnected ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
+                  onClick={() => window.location.href = '/api/quickbooks/auth'}
+                >
+                  {qbConnected ? 'Reconnect' : 'Connect QuickBooks'}
+                </button>
+              </div>
+            </div>
+
             <div className="label">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
             <div className="card">
               {payments.filter(p => p.payment_month === currentMonth).length === 0 && (
