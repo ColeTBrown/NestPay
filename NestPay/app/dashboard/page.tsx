@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
   const [qbConnected, setQbConnected] = useState(false)
+  const [stripeConnected, setStripeConnected] = useState(false)
 
   const [showPropertyForm, setShowPropertyForm] = useState(false)
   const [propertyForm, setPropertyForm] = useState({ name: '', address: '' })
@@ -66,6 +67,15 @@ export default function DashboardPage() {
     setQbConnected(!!data)
   }
 
+  async function checkStripeConnection(lid: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('stripe_onboarding_complete')
+      .eq('id', lid)
+      .single()
+    setStripeConnected(!!data?.stripe_onboarding_complete)
+  }
+
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -74,6 +84,7 @@ export default function DashboardPage() {
       setLandlordId(lid)
       await loadData(lid)
       await checkQBConnection(lid)
+      await checkStripeConnection(lid)
       setLoading(false)
       sendAI("Give me today's daily briefing for my properties.", lid, [])
     }
@@ -316,6 +327,36 @@ export default function DashboardPage() {
                   onClick={() => window.location.href = `/api/quickbooks/auth?landlordId=${landlordId}`}
                 >
                   {qbConnected ? 'Reconnect' : 'Connect QuickBooks'}
+                </button>
+              </div>
+            </div>
+
+            {/* Stripe Connect Banner */}
+            <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22 }}>💳</span>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>Stripe Payments</div>
+                  <div style={{ color: 'var(--text2)', fontSize: 13 }}>
+                    {stripeConnected ? 'Rent payments deposit directly to your bank account' : 'Connect Stripe to receive rent payments directly'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {stripeConnected && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4ade80', fontSize: 13, fontWeight: 500 }}>
+                    <span style={{ width: 8, height: 8, background: '#4ade80', borderRadius: '50%', display: 'inline-block' }}></span>
+                    Connected
+                  </span>
+                )}
+                {!stripeConnected && (
+                  <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>⚠ Required to receive payments</span>
+                )}
+                <button
+                  className={stripeConnected ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
+                  onClick={() => window.location.href = `/api/stripe/connect?landlordId=${landlordId}`}
+                >
+                  {stripeConnected ? 'Manage' : 'Connect Stripe'}
                 </button>
               </div>
             </div>
