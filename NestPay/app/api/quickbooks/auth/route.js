@@ -1,17 +1,19 @@
 // app/api/quickbooks/auth/route.js
 
 export async function GET(request) {
-  const clientId = process.env.QUICKBOOKS_CLIENT_ID;
-  const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
-  const environment = process.env.QUICKBOOKS_ENVIRONMENT || 'sandbox';
+  const { searchParams } = new URL(request.url)
+  const landlordId = searchParams.get('landlordId')
 
-  const scope = 'com.intuit.quickbooks.accounting';
-  const state = Math.random().toString(36).substring(7);
+  if (!landlordId) {
+    return Response.json({ error: 'Missing landlordId' }, { status: 400 })
+  }
 
-  const authBaseUrl =
-    environment === 'sandbox'
-      ? 'https://appcenter.intuit.com/connect/oauth2'
-      : 'https://appcenter.intuit.com/connect/oauth2';
+  const clientId = process.env.QUICKBOOKS_CLIENT_ID
+  const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI
+  const scope = 'com.intuit.quickbooks.accounting'
+
+  // Encode landlordId in state so we get it back in the callback
+  const state = Buffer.from(JSON.stringify({ landlordId })).toString('base64')
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -19,9 +21,9 @@ export async function GET(request) {
     response_type: 'code',
     scope: scope,
     state: state,
-  });
+  })
 
-  const authUrl = `${authBaseUrl}?${params.toString()}`;
+  const authUrl = `https://appcenter.intuit.com/connect/oauth2?${params.toString()}`
 
-  return Response.redirect(authUrl);
+  return Response.redirect(authUrl)
 }
