@@ -40,9 +40,21 @@ export default function AuthPage() {
         setDone(true)
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(error.message)
-      else router.push('/')
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setError(error.message)
+      } else if (data.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single()
+        if (profile?.role === 'landlord') {
+          router.push('/dashboard')
+        } else {
+          router.push('/portal')
+        }
+      }
     }
     setLoading(false)
   }
