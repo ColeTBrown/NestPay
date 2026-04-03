@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         const unitName = payment.tenants?.units?.unit_number
           ? `Unit ${payment.tenants.units.unit_number} - ${payment.tenants.units.properties?.name || ''}`
           : 'Rental Unit'
+        const landlordId = payment.tenants?.units?.properties?.landlord_id
 
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nest-pay-theta.vercel.app'
 
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
             unitName,
             paymentDate: new Date(pi.created * 1000).toISOString().split('T')[0],
             stripePaymentId: pi.id,
+            landlordId,
           }),
         })
 
