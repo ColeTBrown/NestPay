@@ -471,8 +471,8 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="hero">
         <div className="hero-eyebrow">Property management, simplified</div>
-        <h1 className="hero-title">
-          Rent collection that <em>actually</em> works
+        <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 'clamp(64px, 10vw, 120px)', letterSpacing: '-3px', lineHeight: 1, marginBottom: 24, animation: 'fadeUp 0.6s ease 0.1s both' }}>
+          Nest<span style={{ color: '#38BDF8' }}>Bridge</span>
         </h1>
         <p className="hero-sub">
           NestBridge connects landlords and tenants in one seamless platform — payments, maintenance, and accounting all in one place.
