@@ -56,10 +56,11 @@ export default function DashboardPage() {
     }
   }
 
-  async function checkQBConnection() {
+  async function checkQBConnection(lid: string) {
     const { data } = await supabase
       .from('quickbooks_tokens')
       .select('realm_id')
+      .eq('landlord_id', lid)
       .limit(1)
       .single()
     setQbConnected(!!data)
@@ -72,7 +73,7 @@ export default function DashboardPage() {
       const lid = session.user.id
       setLandlordId(lid)
       await loadData(lid)
-      await checkQBConnection()
+      await checkQBConnection(lid)
       setLoading(false)
       sendAI("Give me today's daily briefing for my properties.", lid, [])
     }
@@ -312,7 +313,7 @@ export default function DashboardPage() {
                 )}
                 <button
                   className={qbConnected ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
-                  onClick={() => window.location.href = '/api/quickbooks/auth'}
+                  onClick={() => window.location.href = `/api/quickbooks/auth?landlordId=${landlordId}`}
                 >
                   {qbConnected ? 'Reconnect' : 'Connect QuickBooks'}
                 </button>
