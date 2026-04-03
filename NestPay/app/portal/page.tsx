@@ -342,7 +342,7 @@ export default function PortalPage() {
     const { data: r } = await supabase
       .from('maintenance_requests')
       .select('*')
-      .eq('tenant_id', t.id)
+      .eq('tenant_id', tenant.id)
       .order('created_at', { ascending: false })
     setRequests(r || [])
   }
