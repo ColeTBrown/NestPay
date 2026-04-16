@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-const LANDLORD_INVITE_CODE = 'NESTPAY-LANDLORD' // Change this to whatever you want
+const LANDLORD_INVITE_CODE = 'NB-LANDLORD-LAUNCH'
 
 export default function AuthPage() {
   const router = useRouter()
