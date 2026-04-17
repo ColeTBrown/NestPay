@@ -93,7 +93,6 @@ export default function LandingPage() {
           border-color: #333;
         }
 
-        /* Hero */
         .hero {
           min-height: 100vh;
           display: flex;
@@ -212,7 +211,6 @@ export default function LandingPage() {
           transform: translateY(-1px);
         }
 
-        /* Features */
         .features {
           padding: 120px 48px;
           max-width: 1100px;
@@ -277,7 +275,6 @@ export default function LandingPage() {
           line-height: 1.6;
         }
 
-        /* Stats */
         .stats-section {
           padding: 80px 48px;
           background: #1a1a1a;
@@ -308,7 +305,6 @@ export default function LandingPage() {
           color: rgba(247,246,243,0.6);
         }
 
-        /* Roles */
         .roles-section {
           padding: 120px 48px;
           max-width: 1100px;
@@ -413,7 +409,6 @@ export default function LandingPage() {
           transform: translateY(-1px);
         }
 
-        /* Footer */
         .footer {
           padding: 40px 48px;
           border-top: 1px solid #e8e6e0;
@@ -429,6 +424,21 @@ export default function LandingPage() {
         }
 
         .footer-logo span { color: #38BDF8; }
+
+        .footer-links {
+          display: flex;
+          gap: 24px;
+        }
+
+        .footer-links a {
+          font-size: 13px;
+          color: #aaa;
+          font-weight: 300;
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+
+        .footer-links a:hover { color: #1a1a1a; }
 
         .footer-copy {
           font-size: 13px;
@@ -461,7 +471,7 @@ export default function LandingPage() {
         borderBottom: `1px solid ${scrolled ? '#e8e6e0' : 'transparent'}`,
         backdropFilter: scrolled ? 'blur(12px)' : 'none',
       }}>
-        <div className="nav-logo">Nest<span>Bridge</span></div>
+        <div className="nav-logo">Rent<span>idge</span></div>
         <div className="nav-actions">
           <button className="btn-ghost-nav" onClick={() => router.push('/auth?mode=signin')}>Sign in</button>
           <button className="btn-primary-nav" onClick={() => router.push('/auth?mode=signup')}>Get started</button>
@@ -472,10 +482,10 @@ export default function LandingPage() {
       <section className="hero">
         <div className="hero-eyebrow">Property management, simplified</div>
         <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 'clamp(64px, 10vw, 120px)', letterSpacing: '-3px', lineHeight: 1, marginBottom: 24, animation: 'fadeUp 0.6s ease 0.1s both' }}>
-          Nest<span style={{ color: '#38BDF8' }}>Bridge</span>
+          Rent<span style={{ color: '#38BDF8' }}>idge</span>
         </h1>
         <p className="hero-sub">
-          NestBridge connects landlords and tenants in one seamless platform — payments, maintenance, and accounting all in one place.
+          Rentidge connects landlords and tenants in one seamless platform — payments, maintenance, and accounting all in one place.
         </p>
         <div className="hero-actions">
           <button className="btn-hero-primary" onClick={() => router.push('/auth?mode=signup')}>
@@ -498,7 +508,7 @@ export default function LandingPage() {
             { icon: '📊', title: 'QuickBooks sync', desc: 'Every payment automatically creates an income entry in QuickBooks. Zero manual bookkeeping.' },
             { icon: '🤖', title: 'AI daily briefings', desc: 'Start each day with an AI-generated summary of your portfolio — payments, requests, and more.' },
             { icon: '🔄', title: 'Autopay support', desc: 'Tenants can save their card and enable autopay so rent is never late.' },
-            { icon: '📱', title: 'Works everywhere', desc: 'Fully responsive — landlords and tenants can use NestBridge on any device.' },
+            { icon: '📱', title: 'Works everywhere', desc: 'Fully responsive — landlords and tenants can use Rentidge on any device.' },
           ].map((f, i) => (
             <div key={i} className="feature-card">
               <span className="feature-icon">{f.icon}</span>
@@ -559,8 +569,13 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="footer">
-        <div className="footer-logo">Nest<span>Bridge</span></div>
-        <p className="footer-copy">© {new Date().getFullYear()} NestBridge. All rights reserved.</p>
+        <div className="footer-logo">Rent<span>idge</span></div>
+        <div className="footer-links">
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/eula">Terms of Service</a>
+          <a href="mailto:support@rentidge.com">support@rentidge.com</a>
+        </div>
+        <p className="footer-copy">© {new Date().getFullYear()} Rentidge. All rights reserved.</p>
       </footer>
     </>
   )
