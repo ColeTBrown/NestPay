@@ -64,7 +64,7 @@ export default function AuthPage() {
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>
-            Nest<span>Bridge</span>
+            Rent<span>idge</span>
           </div>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Modern property management & rent payments</p>
         </div>
@@ -141,7 +141,7 @@ export default function AuthPage() {
                           required
                         />
                         <p style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>
-                          Contact NestBridge to get an invite code.
+                          Contact Rentidge to get an invite code.
                         </p>
                       </div>
                     )}
