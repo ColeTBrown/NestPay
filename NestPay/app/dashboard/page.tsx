@@ -177,7 +177,7 @@ export default function DashboardPage() {
   return (
     <>
       <div className="topbar">
-        <div className="logo">Nest<span>Bridge</span></div>
+        <div className="logo">Rent<span>idge</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontSize: 13, color: 'var(--text2)' }}>Landlord</span>
           <button className="btn btn-ghost btn-sm" onClick={() => supabase.auth.signOut().then(() => router.push('/auth'))}>Sign out</button>
@@ -354,7 +354,13 @@ export default function DashboardPage() {
                 )}
                 <button
                   className={stripeConnected ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
-                  onClick={() => window.location.href = `/api/stripe/connect?landlordId=${landlordId}`}
+                  onClick={() => {
+                    if (!landlordId) {
+                      alert('Session error — please refresh the page and try again.')
+                      return
+                    }
+                    window.location.href = `/api/stripe/connect?landlordId=${landlordId}`
+                  }}
                 >
                   {stripeConnected ? 'Manage' : 'Connect Stripe'}
                 </button>
