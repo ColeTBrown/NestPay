@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       customer: customerId,
       setup_future_usage: saveCard ? 'off_session' : undefined,
       metadata: { tenantId, unitId: tenant.unit_id, paymentMonth },
-      description: `NestBridge rent — ${paymentMonth} — ${tenant.units?.properties?.name || ''}`,
+      description: `Rentidge rent — ${paymentMonth} — ${tenant.units?.properties?.name || ''}`,
       application_fee_amount: platformFeeCents,
       transfer_data: {
         destination: stripeAccountId,

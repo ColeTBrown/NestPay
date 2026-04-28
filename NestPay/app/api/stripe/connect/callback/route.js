@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://nest-pay-theta.vercel.app'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rentidge.com'
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
