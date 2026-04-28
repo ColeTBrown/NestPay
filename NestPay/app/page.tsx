@@ -36,9 +36,6 @@ export default function LandingPage() {
           align-items: center;
           justify-content: space-between;
           transition: background 0.3s, border-color 0.3s;
-          background: ${scrolled ? 'rgba(247,246,243,0.92)' : 'transparent'};
-          border-bottom: 1px solid ${scrolled ? '#e8e6e0' : 'transparent'};
-          backdrop-filter: ${scrolled ? 'blur(12px)' : 'none'};
         }
 
         .nav-logo {
@@ -254,10 +251,13 @@ export default function LandingPage() {
 
         .feature-card:hover { background: #fff; }
 
-        .feature-icon {
-          font-size: 28px;
-          margin-bottom: 20px;
-          display: block;
+        .feature-number {
+          font-family: 'DM Serif Display', serif;
+          font-size: 13px;
+          color: #38BDF8;
+          margin-bottom: 28px;
+          letter-spacing: 0.5px;
+          font-weight: 500;
         }
 
         .feature-title {
@@ -503,15 +503,15 @@ export default function LandingPage() {
         <h2 className="section-title">Built for modern property management</h2>
         <div className="features-grid">
           {[
-            { icon: '💳', title: 'Online rent payments', desc: 'Tenants pay online, funds go directly to your bank account. Automatic receipts every time.' },
-            { icon: '🔧', title: 'Maintenance tracking', desc: 'Tenants submit requests, landlords manage and resolve — all in one place with full history.' },
-            { icon: '📊', title: 'QuickBooks sync', desc: 'Every payment automatically creates an income entry in QuickBooks. Zero manual bookkeeping.' },
-            { icon: '🤖', title: 'AI daily briefings', desc: 'Start each day with an AI-generated summary of your portfolio — payments, requests, and more.' },
-            { icon: '🔄', title: 'Autopay support', desc: 'Tenants can save their card and enable autopay so rent is never late.' },
-            { icon: '📱', title: 'Works everywhere', desc: 'Fully responsive — landlords and tenants can use Rentidge on any device.' },
+            { title: 'Online rent payments', desc: 'Tenants pay online, funds go directly to your bank account. Automatic receipts every time.' },
+            { title: 'Maintenance tracking', desc: 'Tenants submit requests, landlords manage and resolve — all in one place with full history.' },
+            { title: 'QuickBooks sync', desc: 'Every payment automatically creates an income entry in QuickBooks. Zero manual bookkeeping.' },
+            { title: 'AI daily briefings', desc: 'Start each day with an AI-generated summary of your portfolio — payments, requests, and more.' },
+            { title: 'Autopay support', desc: 'Tenants can save their card and enable autopay so rent is never late.' },
+            { title: 'Works everywhere', desc: 'Fully responsive — landlords and tenants can use Rentidge on any device.' },
           ].map((f, i) => (
             <div key={i} className="feature-card">
-              <span className="feature-icon">{f.icon}</span>
+              <div className="feature-number">0{i + 1}</div>
               <div className="feature-title">{f.title}</div>
               <p className="feature-desc">{f.desc}</p>
             </div>
