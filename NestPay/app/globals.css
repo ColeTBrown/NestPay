@@ -10,15 +10,18 @@
   --green: #3ecf8e;
   --red: #fc6b6b;
   --gold: #f5a623;
-  --text: #CBD5E1;
+  --text: #E2E8F0;
   --text2: #94A3B8;
   --text3: #64748B;
   --border: rgba(255,255,255,0.07);
   --border2: rgba(255,255,255,0.12);
-  --radius: 12px;
+  --radius: 8px;
 }
 
-html { font-size: 16px; }
+html {
+  font-size: 16px;
+  background: var(--bg);
+}
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -42,7 +45,12 @@ a { color: inherit; text-decoration: none; }
   z-index: 50;
 }
 
-.logo { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+.logo {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+}
 .logo span { color: var(--accent); }
 
 .wrap { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
@@ -58,7 +66,7 @@ a { color: inherit; text-decoration: none; }
 .card-inner {
   background: var(--bg3);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 16px;
 }
 
@@ -67,7 +75,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border: none;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
@@ -91,7 +99,7 @@ a { color: inherit; text-decoration: none; }
   width: 100%;
   background: rgba(0,0,0,0.25);
   border: 1px solid var(--border2);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 11px 14px;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -124,7 +132,7 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
   margin-bottom: 28px;
 }
-.stat { background: var(--bg3); border-radius: 10px; padding: 16px; }
+.stat { background: var(--bg3); border-radius: var(--radius); padding: 16px; }
 .stat-label { font-size: 12px; color: var(--text2); margin-bottom: 5px; }
 .stat-val { font-size: 24px; font-weight: 500; }
 .g { color: var(--green); }
@@ -140,7 +148,7 @@ a { color: inherit; text-decoration: none; }
   border-bottom: 1px solid var(--border);
 }
 .list-row:last-child { border-bottom: none; }
-.row-title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.row-title { font-size: 14px; font-weight: 500; margin-bottom: 3px; color: var(--text); }
 .row-sub   { font-size: 12px; color: var(--text2); }
 
 .label {
@@ -171,7 +179,7 @@ a { color: inherit; text-decoration: none; }
 .chat-msg { display: flex; gap: 10px; align-items: flex-start; }
 .chat-avatar {
   width: 30px; height: 30px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--accent);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 600; flex-shrink: 0;
@@ -180,17 +188,19 @@ a { color: inherit; text-decoration: none; }
 .chat-bubble {
   background: var(--bg3);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 12px 14px;
   font-size: 14px;
   line-height: 1.6;
   max-width: 88%;
   white-space: pre-wrap;
+  color: var(--text);
 }
 .chat-bubble.user {
   background: rgba(56,189,248,0.08);
   border-color: rgba(56,189,248,0.2);
   margin-left: auto;
+  color: var(--text);
 }
 .chat-input-row {
   display: flex;
@@ -201,7 +211,7 @@ a { color: inherit; text-decoration: none; }
   flex: 1;
   background: rgba(0,0,0,0.2);
   border: 1px solid var(--border2);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 11px 14px;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -209,3 +219,11 @@ a { color: inherit; text-decoration: none; }
   outline: none;
 }
 .chat-input-row input:focus { border-color: var(--accent); }
+
+/* Auth page card override — neutral grey instead of bluer bg2 */
+.auth-card {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 24px;
+}
