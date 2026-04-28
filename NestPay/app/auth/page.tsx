@@ -63,8 +63,8 @@ export default function AuthPage() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>
-            Rent<span>idge</span>
+          <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.5px', marginBottom: 8, color: '#1a1a1a' }}>
+            Rent<span style={{ color: '#38BDF8' }}>idge</span>
           </div>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Modern property management & rent payments</p>
         </div>
