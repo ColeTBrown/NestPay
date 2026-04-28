@@ -69,12 +69,11 @@ export default function AuthPage() {
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Modern property management & rent payments</p>
         </div>
 
-        <div className="card">
+        <div className="auth-card">
           {done ? (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>📬</div>
-              <div style={{ fontWeight: 500, marginBottom: 8 }}>Check your email</div>
-              <p style={{ color: 'var(--text2)', fontSize: 14 }}>We sent a confirmation link to <strong>{email}</strong></p>
+              <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 16, color: 'var(--text)' }}>Check your email</div>
+              <p style={{ color: 'var(--text2)', fontSize: 14 }}>We sent a confirmation link to <strong style={{ color: 'var(--text)' }}>{email}</strong></p>
             </div>
           ) : (
             <>
@@ -86,7 +85,7 @@ export default function AuthPage() {
                     className="btn"
                     style={{
                       flex: 1, justifyContent: 'center',
-                      background: mode === m ? 'var(--bg3)' : 'transparent',
+                      background: mode === m ? 'var(--bg2)' : 'transparent',
                       color: mode === m ? 'var(--text)' : 'var(--text2)',
                       border: 'none', padding: '8px'
                     }}
@@ -119,12 +118,12 @@ export default function AuthPage() {
                             className="btn"
                             style={{
                               flex: 1, justifyContent: 'center',
-                              background: role === r ? 'var(--bg3)' : 'transparent',
+                              background: role === r ? 'var(--bg2)' : 'transparent',
                               color: role === r ? 'var(--text)' : 'var(--text2)',
                               border: role === r ? '1px solid var(--accent)' : '1px solid var(--border)'
                             }}
                           >
-                            {r === 'tenant' ? '🏠 Tenant' : '🏢 Landlord'}
+                            {r === 'tenant' ? 'Tenant' : 'Landlord'}
                           </button>
                         ))}
                       </div>
