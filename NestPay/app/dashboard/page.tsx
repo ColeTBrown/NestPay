@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const chatRef = useRef<HTMLDivElement>(null)
   const [qbConnected, setQbConnected] = useState(false)
   const [stripeConnected, setStripeConnected] = useState(false)
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
   const [showPropertyForm, setShowPropertyForm] = useState(false)
   const [propertyForm, setPropertyForm] = useState({ name: '', address: '' })
@@ -144,6 +145,41 @@ export default function DashboardPage() {
       await loadData(landlordId)
     }
     setUnitLoading(false)
+  }
+
+  async function regenerateInviteCode(unitId: string) {
+    if (!confirm('Regenerate invite code? The old code will stop working immediately.')) return
+
+    // Fetch a fresh code from the database (using its built-in function)
+    const { data, error } = await supabase
+      .rpc('generate_invite_code')
+
+    if (error || !data) {
+      alert('Failed to generate new code. Try again.')
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('units')
+      .update({ invite_code: data, invite_code_used: false })
+      .eq('id', unitId)
+
+    if (updateError) {
+      alert('Failed to update invite code: ' + updateError.message)
+      return
+    }
+
+    await loadData(landlordId)
+  }
+
+  async function copyInviteCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiedCode(code)
+      setTimeout(() => setCopiedCode(null), 2000)
+    } catch {
+      alert('Could not copy to clipboard')
+    }
   }
 
   async function sendAI(msg: string, lid?: string, hist?: any[]) {
@@ -297,23 +333,70 @@ export default function DashboardPage() {
                 {property.units.length === 0 ? (
                   <p style={{ color: 'var(--text2)', fontSize: 13 }}>No units yet.</p>
                 ) : (
-                  property.units.map((unit: any) => (
-                    <div key={unit.id} className="list-row">
-                      <div>
-                        <div className="row-title">Unit {unit.unit_number}</div>
-                        <div className="row-sub">
-                          ${Number(unit.monthly_rent).toLocaleString()}/mo
-                          {unit.tenants?.length > 0 ? ` · ${unit.tenants[0].full_name}` : ' · Vacant'}
+                  property.units.map((unit: any) => {
+                    const isOccupied = unit.tenants?.length > 0
+                    return (
+                      <div key={unit.id} className="list-row" style={{ alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1 }}>
+                          <div className="row-title">Unit {unit.unit_number}</div>
+                          <div className="row-sub">
+                            ${Number(unit.monthly_rent).toLocaleString()}/mo
+                            {isOccupied ? ` · ${unit.tenants[0].full_name}` : ' · Vacant'}
+                          </div>
+                          {!isOccupied && unit.invite_code && (
+                            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Invite code</span>
+                              <code style={{
+                                background: 'var(--bg3)',
+                                padding: '4px 10px',
+                                borderRadius: 4,
+                                color: 'var(--accent)',
+                                fontFamily: 'monospace',
+                                fontSize: 13,
+                                letterSpacing: 0.5,
+                                fontWeight: 500
+                              }}>{unit.invite_code}</code>
+                              <button
+                                onClick={() => copyInviteCode(unit.invite_code)}
+                                style={{
+                                  background: 'transparent',
+                                  border: '1px solid var(--border2)',
+                                  color: copiedCode === unit.invite_code ? 'var(--green)' : 'var(--text2)',
+                                  padding: '3px 10px',
+                                  borderRadius: 4,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                  fontWeight: 500
+                                }}
+                              >
+                                {copiedCode === unit.invite_code ? 'Copied' : 'Copy'}
+                              </button>
+                              <button
+                                onClick={() => regenerateInviteCode(unit.id)}
+                                style={{
+                                  background: 'transparent',
+                                  border: '1px solid var(--border2)',
+                                  color: 'var(--text2)',
+                                  padding: '3px 10px',
+                                  borderRadius: 4,
+                                  fontSize: 11,
+                                  cursor: 'pointer',
+                                  fontWeight: 500
+                                }}
+                              >
+                                Regenerate
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className={`tag ${isOccupied ? 'tag-paid' : 'tag-open'}`}>
+                            {isOccupied ? 'Occupied' : 'Vacant'}
+                          </span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className={`tag ${unit.tenants?.length > 0 ? 'tag-paid' : 'tag-open'}`}>
-                          {unit.tenants?.length > 0 ? 'Occupied' : 'Vacant'}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--text3)' }}>Code: {unit.unit_number}</span>
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             ))}
@@ -370,7 +453,7 @@ export default function DashboardPage() {
                   </span>
                 )}
                 {!stripeConnected && (
-                  <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>⚠ Required to receive payments</span>
+                  <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>Required to receive payments</span>
                 )}
                 <button
                   className={stripeConnected ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
