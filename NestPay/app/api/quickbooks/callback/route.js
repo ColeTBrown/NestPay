@@ -13,7 +13,7 @@ export async function GET(request) {
   const realmId = searchParams.get('realmId')
   const state = searchParams.get('state')
   const error = searchParams.get('error')
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nest-pay-theta.vercel.app'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rentidge.com'
 
   if (error) {
     return Response.redirect(`${appUrl}/dashboard?qb_error=${error}`)

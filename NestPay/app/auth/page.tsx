@@ -3,8 +3,6 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-const LANDLORD_INVITE_CODE = 'NB-LANDLORD-LAUNCH'
-
 export default function AuthPage() {
   const router = useRouter()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
@@ -23,11 +21,25 @@ export default function AuthPage() {
     setError('')
 
     if (mode === 'signup') {
-      // Landlord invite code check
-      if (role === 'landlord' && inviteCode !== LANDLORD_INVITE_CODE) {
-        setError('Invalid invite code for landlord signup.')
-        setLoading(false)
-        return
+      // Landlord invite code check (server-side validation)
+      if (role === 'landlord') {
+        try {
+          const res = await fetch('/api/auth/validate-landlord-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: inviteCode }),
+          })
+          const json = await res.json()
+          if (!res.ok || !json.valid) {
+            setError('Invalid invite code for landlord signup.')
+            setLoading(false)
+            return
+          }
+        } catch {
+          setError('Could not validate invite code. Please try again.')
+          setLoading(false)
+          return
+        }
       }
 
       // Tenant invite code check — validate BEFORE creating account
