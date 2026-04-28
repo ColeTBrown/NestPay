@@ -95,11 +95,11 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>Nest<span>Bridge</span></div>
+          <div className="logo" style={{ fontSize: 28, marginBottom: 8 }}>Rent<span>idge</span></div>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Let's get your account set up</p>
         </div>
         <div className="card">
-          <h2 style={{ fontWeight: 500, fontSize: 18, marginBottom: 4 }}>Welcome! 👋</h2>
+          <h2 style={{ fontWeight: 500, fontSize: 18, marginBottom: 4 }}>Welcome</h2>
           <p style={{ color: 'var(--text2)', fontSize: 14, marginBottom: 24 }}>
             Fill in your details to get started. Ask your landlord for your unit code.
           </p>
@@ -128,7 +128,7 @@ function AISupportTab({ tenant, unit }: { tenant: any, unit: any }) {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
     {
       role: 'assistant',
-      content: `Hi ${tenant?.full_name?.split(' ')[0] || 'there'}! 👋 I'm your NestBridge support assistant. I can help you with maintenance questions, renting advice, and anything about your unit. What can I help you with?`
+      content: `Hi ${tenant?.full_name?.split(' ')[0] || 'there'}! I'm your Rentidge support assistant. I can help you with maintenance questions, renting advice, and anything about your unit. What can I help you with?`
     }
   ])
   const [input, setInput] = useState('')
@@ -162,12 +162,12 @@ function AISupportTab({ tenant, unit }: { tenant: any, unit: any }) {
             property: unit?.properties?.name,
             monthlyRent: unit?.monthly_rent,
           },
-          systemPrompt: `You are a helpful tenant support assistant for NestBridge, a property management platform. 
+          systemPrompt: `You are a helpful tenant support assistant for Rentidge, a property management platform. 
 You help tenants with:
 - Maintenance questions (what's urgent, DIY fixes, when to submit a request)
 - Understanding their responsibilities as a tenant vs landlord responsibilities
 - General renting advice and tenant rights
-- How to use NestBridge features (submitting requests, paying rent, etc.)
+- How to use Rentidge features (submitting requests, paying rent, etc.)
 
 The tenant you're helping is ${tenant?.full_name}, living in Unit ${unit?.unit_number} at ${unit?.properties?.name}, paying $${unit?.monthly_rent}/month.
 
@@ -189,9 +189,9 @@ Do not discuss specific lease terms you don't have access to. If a question requ
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 0, padding: 0, overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 32, height: 32, background: 'var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🤖</div>
+        <div style={{ width: 32, height: 32, background: 'var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#020617' }}>AI</div>
         <div>
-          <div style={{ fontWeight: 500, fontSize: 14 }}>NestBridge Support</div>
+          <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)' }}>Rentidge Support</div>
           <div style={{ fontSize: 12, color: 'var(--text2)' }}>AI-powered · Always available</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4ade80' }}>
@@ -205,7 +205,7 @@ Do not discuss specific lease terms you don't have access to. If a question requ
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 8, alignItems: 'flex-end' }}>
             {m.role === 'assistant' && (
-              <div style={{ width: 28, height: 28, background: 'var(--bg3)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>🤖</div>
+              <div style={{ width: 28, height: 28, background: 'var(--bg3)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text)', flexShrink: 0 }}>AI</div>
             )}
             <div style={{
               maxWidth: '75%',
@@ -222,7 +222,7 @@ Do not discuss specific lease terms you don't have access to. If a question requ
         ))}
         {loading && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ width: 28, height: 28, background: 'var(--bg3)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>🤖</div>
+            <div style={{ width: 28, height: 28, background: 'var(--bg3)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>AI</div>
             <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 4px', background: 'var(--bg3)', fontSize: 14, color: 'var(--text3)' }}>
               Thinking...
             </div>
@@ -369,7 +369,7 @@ export default function PortalPage() {
   return (
     <>
       <div className="topbar">
-        <div className="logo">Nest<span>Bridge</span></div>
+        <div className="logo">Rent<span>idge</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontSize: 13, color: 'var(--text2)' }}>{tenant?.full_name}</span>
           <button className="btn btn-ghost btn-sm" onClick={() => supabase.auth.signOut().then(() => router.push('/auth'))}>Sign out</button>
@@ -378,7 +378,7 @@ export default function PortalPage() {
 
       <div className="wrap">
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 500, marginBottom: 4 }}>Hi, {tenant?.full_name?.split(' ')[0]} 👋</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 500, marginBottom: 4 }}>Hi, {tenant?.full_name?.split(' ')[0]}</h1>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Unit {unit?.unit_number} · {unit?.properties?.name}</p>
         </div>
 
@@ -402,7 +402,7 @@ export default function PortalPage() {
         <div className="tabs">
           {(['pay', 'maintenance', 'history', 'support'] as const).map(t => (
             <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'pay' ? 'Rent' : t === 'maintenance' ? 'Maintenance' : t === 'history' ? 'History' : '🤖 Support'}
+              {t === 'pay' ? 'Rent' : t === 'maintenance' ? 'Maintenance' : t === 'history' ? 'History' : 'Support'}
             </button>
           ))}
         </div>
@@ -411,8 +411,7 @@ export default function PortalPage() {
           <div>
             {paySuccess || currentPayment ? (
               <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-                <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 6 }}>You're all set!</div>
+                <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 6, color: 'var(--green)' }}>You're all set</div>
                 <p style={{ color: 'var(--text2)', fontSize: 14 }}>
                   Rent paid for {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}
                 </p>
@@ -442,7 +441,7 @@ export default function PortalPage() {
                   Pay with card
                 </button>
                 <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text3)', marginTop: 12 }}>
-                  {tenant?.autopay_enabled ? '✓ Autopay is on — card will be charged on the 1st' : 'Enable autopay after your first payment'}
+                  {tenant?.autopay_enabled ? 'Autopay is on — card will be charged on the 1st' : 'Enable autopay after your first payment'}
                 </p>
               </div>
             )}
