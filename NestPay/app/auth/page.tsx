@@ -32,6 +32,8 @@ export default function AuthPage() {
 
       // Tenant invite code check — validate BEFORE creating account
       let tenantUnitId: string | null = null
+      const normalizedInviteCode = tenantInviteCode.trim().toUpperCase()
+
       if (role === 'tenant') {
         if (!tenantInviteCode.trim()) {
           setError('Please enter the invite code your landlord gave you.')
@@ -39,25 +41,16 @@ export default function AuthPage() {
           return
         }
 
-        const { data: unit, error: unitError } = await supabase
-          .from('units')
-          .select('id, unit_number, invite_code_used')
-          .eq('invite_code', tenantInviteCode.trim().toUpperCase())
-          .maybeSingle()
+        const { data: unitMatches, error: unitError } = await supabase
+          .rpc('find_unit_by_invite_code', { code: normalizedInviteCode })
 
-        if (unitError || !unit) {
-          setError('Invalid invite code. Please double-check with your landlord.')
+        if (unitError || !unitMatches || unitMatches.length === 0) {
+          setError('Invalid or already-used invite code. Please double-check with your landlord.')
           setLoading(false)
           return
         }
 
-        if (unit.invite_code_used) {
-          setError('This invite code has already been used. Please ask your landlord for a new one.')
-          setLoading(false)
-          return
-        }
-
-        tenantUnitId = unit.id
+        tenantUnitId = unitMatches[0].id
       }
 
       // Create the auth account
@@ -76,18 +69,23 @@ export default function AuthPage() {
       if (data.user) {
         await supabase.from('profiles').insert({ id: data.user.id, role })
 
-        // For tenants: link to unit and mark code used
+        // For tenants: claim the unit (atomically marks invite code used) and create tenant record
         if (role === 'tenant' && tenantUnitId) {
+          const { error: claimError } = await supabase
+            .rpc('claim_unit_with_invite_code', { code: normalizedInviteCode })
+
+          if (claimError) {
+            setError('Could not claim unit. The invite code may have just been used by someone else.')
+            setLoading(false)
+            return
+          }
+
           await supabase.from('tenants').insert({
             user_id: data.user.id,
             unit_id: tenantUnitId,
             email: email,
             full_name: email.split('@')[0],
           })
-          await supabase
-            .from('units')
-            .update({ invite_code_used: true })
-            .eq('id', tenantUnitId)
         }
 
         setDone(true)
