@@ -5,13 +5,35 @@ import { supabaseAdmin } from '@/lib/supabase'
 export async function POST(req: NextRequest) {
   const body = await req.text()
   const sig = req.headers.get('stripe-signature')!
-
   let event
 
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
   } catch (err: any) {
     return NextResponse.json({ error: `Webhook error: ${err.message}` }, { status: 400 })
+  }
+
+  // Handle landlord Stripe Connect onboarding completion
+  if (event.type === 'account.updated') {
+    const account = event.data.object as any
+
+    // Stripe considers an account "ready" when charges_enabled and details_submitted are both true
+    const onboardingComplete =
+      account.charges_enabled === true &&
+      account.details_submitted === true
+
+    if (onboardingComplete) {
+      const { error } = await supabaseAdmin
+        .from('profiles')
+        .update({ stripe_onboarding_complete: true })
+        .eq('stripe_account_id', account.id)
+
+      if (error) {
+        console.error('Failed to update stripe_onboarding_complete:', error)
+      } else {
+        console.log('Marked landlord onboarding complete:', account.id)
+      }
+    }
   }
 
   if (event.type === 'payment_intent.succeeded') {
@@ -41,7 +63,7 @@ export async function POST(req: NextRequest) {
             name,
             units (
               unit_number,
-              properties (name)
+              properties (name, landlord_id)
             )
           )
         `)
@@ -54,8 +76,7 @@ export async function POST(req: NextRequest) {
           ? `Unit ${payment.tenants.units.unit_number} - ${payment.tenants.units.properties?.name || ''}`
           : 'Rental Unit'
         const landlordId = payment.tenants?.units?.properties?.landlord_id
-
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://nest-pay-theta.vercel.app'
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rentidge.com'
 
         const qbResponse = await fetch(`${appUrl}/api/quickbooks/sync`, {
           method: 'POST',
@@ -86,7 +107,6 @@ export async function POST(req: NextRequest) {
 
   if (event.type === 'payment_intent.payment_failed') {
     const pi = event.data.object as any
-
     await supabaseAdmin
       .from('payments')
       .update({ status: 'failed' })
