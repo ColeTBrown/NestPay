@@ -63,12 +63,18 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
 
     const { data: unit, error: unitError } = await supabase
       .from('units')
-      .select('id, unit_number, monthly_rent, properties(name)')
-      .eq('unit_number', unitCode.trim())
+      .select('id, unit_number, monthly_rent, invite_code_used, properties(name)')
+      .eq('invite_code', unitCode.trim().toUpperCase())
       .maybeSingle()
 
     if (unitError || !unit) {
-      setError('Unit not found. Please check your unit code with your landlord.')
+      setError('Invalid invite code. Please check with your landlord.')
+      setLoading(false)
+      return
+    }
+
+    if (unit.invite_code_used) {
+      setError('This invite code has already been used. Please ask your landlord for a new one.')
       setLoading(false)
       return
     }
@@ -88,6 +94,8 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
       return
     }
 
+    await supabase.from('units').update({ invite_code_used: true }).eq('id', unit.id)
+
     onComplete()
   }
 
@@ -101,7 +109,7 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
         <div className="card">
           <h2 style={{ fontWeight: 500, fontSize: 18, marginBottom: 4 }}>Welcome</h2>
           <p style={{ color: 'var(--text2)', fontSize: 14, marginBottom: 24 }}>
-            Fill in your details to get started. Ask your landlord for your unit code.
+            Fill in your details to get started. Ask your landlord for your invite code.
           </p>
           <form onSubmit={handleSubmit}>
             <div className="field">
@@ -109,8 +117,15 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
               <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Alex Smith" required />
             </div>
             <div className="field">
-              <label>Unit code</label>
-              <input type="text" value={unitCode} onChange={e => setUnitCode(e.target.value)} placeholder="e.g. 2B" required />
+              <label>Invite code</label>
+              <input
+                type="text"
+                value={unitCode}
+                onChange={e => setUnitCode(e.target.value.toUpperCase())}
+                placeholder="RENT-XXXXXX"
+                style={{ fontFamily: 'monospace' }}
+                required
+              />
               <p style={{ color: 'var(--text2)', fontSize: 12, marginTop: 4 }}>Your landlord will give you this code.</p>
             </div>
             {error && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 14 }}>{error}</p>}
@@ -187,7 +202,6 @@ Do not discuss specific lease terms you don't have access to. If a question requ
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 0, padding: 0, overflow: 'hidden' }}>
-      {/* Header */}
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 32, height: 32, background: 'var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#020617' }}>AI</div>
         <div>
@@ -200,7 +214,6 @@ Do not discuss specific lease terms you don't have access to. If a question requ
         </div>
       </div>
 
-      {/* Chat thread */}
       <div ref={chatRef} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 420, overflowY: 'auto' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 8, alignItems: 'flex-end' }}>
@@ -230,7 +243,6 @@ Do not discuss specific lease terms you don't have access to. If a question requ
         )}
       </div>
 
-      {/* Suggested questions */}
       {messages.length <= 1 && (
         <div style={{ padding: '0 20px 16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {suggested.map(q => (
@@ -241,7 +253,6 @@ Do not discuss specific lease terms you don't have access to. If a question requ
         </div>
       )}
 
-      {/* Input */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
         <input
           value={input}
