@@ -12,6 +12,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'landlord' | 'tenant'>('tenant')
   const [inviteCode, setInviteCode] = useState('')
+  const [tenantInviteCode, setTenantInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -22,24 +23,77 @@ export default function AuthPage() {
     setError('')
 
     if (mode === 'signup') {
+      // Landlord invite code check
       if (role === 'landlord' && inviteCode !== LANDLORD_INVITE_CODE) {
         setError('Invalid invite code for landlord signup.')
         setLoading(false)
         return
       }
 
+      // Tenant invite code check — validate BEFORE creating account
+      let tenantUnitId: string | null = null
+      if (role === 'tenant') {
+        if (!tenantInviteCode.trim()) {
+          setError('Please enter the invite code your landlord gave you.')
+          setLoading(false)
+          return
+        }
+
+        const { data: unit, error: unitError } = await supabase
+          .from('units')
+          .select('id, unit_number, invite_code_used')
+          .eq('invite_code', tenantInviteCode.trim().toUpperCase())
+          .maybeSingle()
+
+        if (unitError || !unit) {
+          setError('Invalid invite code. Please double-check with your landlord.')
+          setLoading(false)
+          return
+        }
+
+        if (unit.invite_code_used) {
+          setError('This invite code has already been used. Please ask your landlord for a new one.')
+          setLoading(false)
+          return
+        }
+
+        tenantUnitId = unit.id
+      }
+
+      // Create the auth account
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { role } }
       })
+
       if (error) {
         setError(error.message)
-      } else if (data.user) {
+        setLoading(false)
+        return
+      }
+
+      if (data.user) {
         await supabase.from('profiles').insert({ id: data.user.id, role })
+
+        // For tenants: link to unit and mark code used
+        if (role === 'tenant' && tenantUnitId) {
+          await supabase.from('tenants').insert({
+            user_id: data.user.id,
+            unit_id: tenantUnitId,
+            email: email,
+            full_name: email.split('@')[0],
+          })
+          await supabase
+            .from('units')
+            .update({ invite_code_used: true })
+            .eq('id', tenantUnitId)
+        }
+
         setDone(true)
       }
     } else {
+      // Login flow
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setError(error.message)
@@ -157,9 +211,26 @@ export default function AuthPage() {
                         </div>
                       </div>
 
+                      {role === 'tenant' && (
+                        <div className="field">
+                          <label>Tenant invite code</label>
+                          <input
+                            type="text"
+                            value={tenantInviteCode}
+                            onChange={e => setTenantInviteCode(e.target.value.toUpperCase())}
+                            placeholder="RENT-XXXXXX"
+                            style={{ fontFamily: 'monospace', letterSpacing: 0.5 }}
+                            required
+                          />
+                          <p style={{ color: '#94A3B8', fontSize: 12, marginTop: 4 }}>
+                            Ask your landlord for the invite code for your unit.
+                          </p>
+                        </div>
+                      )}
+
                       {role === 'landlord' && (
                         <div className="field">
-                          <label>Landlord Invite Code</label>
+                          <label>Landlord invite code</label>
                           <input
                             type="text"
                             value={inviteCode}
