@@ -147,12 +147,49 @@ export default function DashboardPage() {
     setUnitLoading(false)
   }
 
+  async function deleteProperty(propertyId: string, propertyName: string, unitCount: number) {
+    if (unitCount > 0) {
+      alert(`Cannot delete "${propertyName}" — it has ${unitCount} unit${unitCount === 1 ? '' : 's'}. Delete the units first.`)
+      return
+    }
+    if (!confirm(`Delete "${propertyName}"? This cannot be undone.`)) return
+
+    const { error } = await supabase
+      .from('properties')
+      .delete()
+      .eq('id', propertyId)
+      .eq('landlord_id', landlordId)
+
+    if (error) {
+      alert('Failed to delete property: ' + error.message)
+      return
+    }
+    await loadData(landlordId)
+  }
+
+  async function deleteUnit(unitId: string, unitNumber: string, hasTenants: boolean) {
+    if (hasTenants) {
+      alert(`Cannot delete Unit ${unitNumber} — a tenant is currently linked to it. Remove the tenant first.`)
+      return
+    }
+    if (!confirm(`Delete Unit ${unitNumber}? Any payments and maintenance requests will also be deleted. This cannot be undone.`)) return
+
+    const { error } = await supabase
+      .from('units')
+      .delete()
+      .eq('id', unitId)
+
+    if (error) {
+      alert('Failed to delete unit: ' + error.message)
+      return
+    }
+    await loadData(landlordId)
+  }
+
   async function regenerateInviteCode(unitId: string) {
     if (!confirm('Regenerate invite code? The old code will stop working immediately.')) return
 
-    // Fetch a fresh code from the database (using its built-in function)
-    const { data, error } = await supabase
-      .rpc('generate_invite_code')
+    const { data, error } = await supabase.rpc('generate_invite_code')
 
     if (error || !data) {
       alert('Failed to generate new code. Try again.')
@@ -297,14 +334,24 @@ export default function DashboardPage() {
 
             {properties.map((property: any) => (
               <div key={property.id} className="card" style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12 }}>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 500, fontSize: 16 }}>{property.name}</div>
                     <div style={{ color: 'var(--text2)', fontSize: 13, marginTop: 2 }}>{property.address}</div>
                   </div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => { setShowUnitForm(property.id); setUnitError('') }}>
-                    + Add unit
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setShowUnitForm(property.id); setUnitError('') }}>
+                      + Add unit
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => deleteProperty(property.id, property.name, property.units.length)}
+                      style={{ color: 'var(--red)', borderColor: 'rgba(252,107,107,0.3)' }}
+                      title={property.units.length > 0 ? 'Delete all units first' : 'Delete property'}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 {showUnitForm === property.id && (
@@ -393,6 +440,22 @@ export default function DashboardPage() {
                           <span className={`tag ${isOccupied ? 'tag-paid' : 'tag-open'}`}>
                             {isOccupied ? 'Occupied' : 'Vacant'}
                           </span>
+                          <button
+                            onClick={() => deleteUnit(unit.id, unit.unit_number, isOccupied)}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid rgba(252,107,107,0.3)',
+                              color: 'var(--red)',
+                              padding: '3px 10px',
+                              borderRadius: 4,
+                              fontSize: 11,
+                              cursor: 'pointer',
+                              fontWeight: 500
+                            }}
+                            title={isOccupied ? 'Remove tenant first' : 'Delete unit'}
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     )
