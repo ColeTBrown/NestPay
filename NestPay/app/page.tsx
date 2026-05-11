@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import GradientMesh from '@/components/landing/GradientMesh'
-import DashboardMockup from '@/components/landing/DashboardMockup'
+import HeroStoryboard from '@/components/landing/HeroStoryboard'
 
 export default function LandingPage() {
   const router = useRouter()
@@ -194,9 +194,9 @@ export default function LandingPage() {
             </motion.div>
           </div>
 
-          {/* Right column: animated dashboard mockup */}
+          {/* Right column: cinematic storyboard */}
           <div className="relative lg:pl-4">
-            <DashboardMockup />
+            <HeroStoryboard />
           </div>
         </div>
       </section>
