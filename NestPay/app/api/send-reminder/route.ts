@@ -1,23 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { tenantId } = await req.json()
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 })
+    }
 
     const { data: tenant } = await supabaseAdmin
       .from('tenants')
-      .select('*, units(unit_number, monthly_rent, properties(name))')
+      .select('email, full_name, units(unit_number, monthly_rent, properties(name, landlord_id))')
       .eq('id', tenantId)
       .single()
 
-    if (!tenant) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!tenant) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
 
-    const unitNumber = tenant.units?.unit_number ?? '—'
-    const propertyName = tenant.units?.properties?.name ?? 'your unit'
-    const rent = tenant.units?.monthly_rent
-      ? `$${Number(tenant.units.monthly_rent).toFixed(2)}`
+    const landlordId = (tenant as any).units?.properties?.landlord_id
+    if (!landlordId || landlordId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const unitNumber = (tenant as any).units?.unit_number ?? '—'
+    const propertyName = (tenant as any).units?.properties?.name ?? 'your unit'
+    const rent = (tenant as any).units?.monthly_rent
+      ? `$${Number((tenant as any).units.monthly_rent).toFixed(2)}`
       : 'your rent'
 
     const subject = `Rent reminder for ${propertyName} (Unit ${unitNumber})`
