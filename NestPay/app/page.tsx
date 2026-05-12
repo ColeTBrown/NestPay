@@ -231,7 +231,7 @@ export default function LandingPage() {
       <motion.section className="stats-section" {...fadeUpInView}>
         <div className="stats-inner">
           {[
-            { number: '100%', label: 'Payments go directly to landlords' },
+            { number: 'T+2', label: 'Funds settle to your bank' },
             { number: '$0', label: 'Setup fee — free to get started' },
             { number: '24/7', label: 'AI assistant always available' },
           ].map((s, i) => (
