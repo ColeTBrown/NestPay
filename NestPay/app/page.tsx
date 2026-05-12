@@ -1,9 +1,9 @@
 'use client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion } from 'motion/react'
 import GradientMesh from '@/components/landing/GradientMesh'
-import DashboardMockup from '@/components/landing/DashboardMockup'
+import HeroShowcase from '@/components/landing/HeroShowcase'
 
 export default function LandingPage() {
   const router = useRouter()
@@ -16,14 +16,17 @@ export default function LandingPage() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Mount stagger for hero copy. ~80ms apart per item, near-instant when
-  // the user prefers reduced motion.
+  // Mount stagger for hero copy.
   const stepDelay = reduce ? 0 : 0.08
-  const stepDuration = reduce ? 0.15 : 0.6
+  const stepDuration = reduce ? 0.15 : 0.55
   const heroItem = (i: number) => ({
     initial: { opacity: 0, y: reduce ? 0 : 14 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: stepDuration, delay: i * stepDelay, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+    transition: {
+      duration: stepDuration,
+      delay: i * stepDelay,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
   })
 
   // Reusable scroll-triggered fade-up for below-hero sections.
@@ -31,15 +34,16 @@ export default function LandingPage() {
     initial: { opacity: 0, y: reduce ? 0 : 24 },
     whileInView: { opacity: 1, y: 0 },
     viewport: { once: true, margin: '-80px' },
-    transition: { duration: reduce ? 0.2 : 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+    transition: {
+      duration: reduce ? 0.2 : 0.7,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
   }
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
-
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         html, body {
           background: #f7f6f3 !important;
@@ -48,7 +52,7 @@ export default function LandingPage() {
           -webkit-font-smoothing: antialiased;
         }
 
-        .nav {
+        .nav-legacy {
           position: fixed;
           top: 0; left: 0; right: 0;
           z-index: 100;
@@ -100,7 +104,7 @@ export default function LandingPage() {
         .role-tag { display: inline-block; font-size: 11px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: #38BDF8; margin-bottom: 16px; }
         .role-title { font-family: 'DM Serif Display', serif; font-size: 32px; color: #1a1a1a; letter-spacing: -0.5px; margin-bottom: 16px; }
         .role-desc { font-size: 15px; font-weight: 300; color: #777; line-height: 1.7; margin-bottom: 32px; }
-        .role-list { list-style: none; margin-bottom: 40px; }
+        .role-list { list-style: none; margin-bottom: 40px; padding: 0; }
         .role-list li { font-size: 14px; color: #555; padding: 8px 0; border-bottom: 1px solid #f0ede8; display: flex; align-items: center; gap: 10px; }
         .role-list li::before { content: '→'; color: #38BDF8; font-size: 12px; }
         .btn-role { width: 100%; padding: 14px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; border: 1px solid #1a1a1a; background: #1a1a1a; color: #f7f6f3; }
@@ -115,7 +119,7 @@ export default function LandingPage() {
         .footer-copy { font-size: 13px; color: #aaa; font-weight: 300; }
 
         @media (max-width: 768px) {
-          .nav { padding: 0 24px; }
+          .nav-legacy { padding: 0 24px; }
           .features, .roles-section { padding: 80px 24px; }
           .features-grid { grid-template-columns: 1fr; }
           .roles-grid { grid-template-columns: 1fr; }
@@ -126,7 +130,7 @@ export default function LandingPage() {
 
       {/* Nav */}
       <nav
-        className="nav"
+        className="nav-legacy"
         style={{
           background: scrolled ? 'rgba(247,246,243,0.92)' : 'transparent',
           borderBottom: `1px solid ${scrolled ? '#e8e6e0' : 'transparent'}`,
@@ -141,15 +145,15 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero — Tailwind two-column */}
-      <section className="relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-32 px-6 lg:px-12">
+      <section className="relative overflow-hidden pt-32 pb-24 lg:pt-36 lg:pb-32 px-6 lg:px-12">
         <GradientMesh />
 
-        <div className="relative mx-auto max-w-[1200px] grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
-          {/* Left column: copy */}
+        <div className="relative mx-auto max-w-[1240px] grid lg:grid-cols-[45%_55%] gap-12 lg:gap-14 items-center">
+          {/* Left — copy */}
           <div className="text-center lg:text-left">
             <motion.div
               {...heroItem(0)}
-              className="inline-flex items-center gap-2 bg-white border border-[#e8e6e0] rounded-full px-4 py-1.5 text-[12px] font-medium text-[#666] uppercase tracking-[0.08em] mb-7"
+              className="inline-flex items-center gap-2 bg-white border border-zinc-200 rounded-full px-4 py-1.5 text-[12px] font-medium text-zinc-500 uppercase tracking-[0.08em] mb-7 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-[#38BDF8]" />
               Property management, simplified
@@ -157,10 +161,10 @@ export default function LandingPage() {
 
             <motion.h1
               {...heroItem(1)}
-              className="text-[#1a1a1a] mb-5"
+              className="text-zinc-900 mb-5"
               style={{
                 fontFamily: "'DM Serif Display', serif",
-                fontSize: 'clamp(56px, 9vw, 104px)',
+                fontSize: 'clamp(56px, 8.5vw, 100px)',
                 lineHeight: 0.98,
                 letterSpacing: '-3px',
               }}
@@ -170,7 +174,7 @@ export default function LandingPage() {
 
             <motion.p
               {...heroItem(2)}
-              className="text-[17px] sm:text-[18px] font-light text-[#555] leading-relaxed max-w-[520px] mx-auto lg:mx-0 mb-9"
+              className="text-[17px] sm:text-[18px] font-light text-zinc-600 leading-relaxed max-w-[520px] mx-auto lg:mx-0 mb-9"
             >
               Rentidge connects landlords and tenants in one seamless platform — payments, maintenance, and accounting all in one place.
             </motion.p>
@@ -181,22 +185,22 @@ export default function LandingPage() {
             >
               <button
                 onClick={() => router.push('/auth?mode=signup')}
-                className="bg-[#1a1a1a] text-[#f7f6f3] border-none rounded-lg px-7 py-3.5 text-[15px] font-medium tracking-[-0.2px] cursor-pointer transition-all hover:bg-[#333] hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                className="bg-zinc-900 text-[#f7f6f3] border-none rounded-lg px-7 py-3.5 text-[15px] font-medium tracking-[-0.2px] cursor-pointer transition-all hover:bg-zinc-800 hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
               >
                 Get started free →
               </button>
               <button
                 onClick={() => router.push('/auth?mode=signin')}
-                className="bg-white text-[#1a1a1a] border border-[#d4d2cc] rounded-lg px-7 py-3.5 text-[15px] font-normal cursor-pointer transition-all hover:border-[#1a1a1a] hover:-translate-y-px"
+                className="bg-white text-zinc-900 border border-zinc-300 rounded-lg px-7 py-3.5 text-[15px] font-normal cursor-pointer transition-all hover:border-zinc-900 hover:-translate-y-px"
               >
                 Sign in
               </button>
             </motion.div>
           </div>
 
-          {/* Right column: animated dashboard mockup */}
-          <div className="relative lg:pl-4">
-            <DashboardMockup />
+          {/* Right — animated product showcase */}
+          <div className="relative">
+            <HeroShowcase />
           </div>
         </div>
       </section>
