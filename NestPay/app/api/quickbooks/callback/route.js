@@ -72,16 +72,20 @@ export async function GET(request) {
     return Response.redirect(`${appUrl}/dashboard?qb_error=state_expired`)
   }
 
-  const { error: markUsedErr, count } = await supabase
+  // Atomically mark the nonce used. The `used_at IS NULL` predicate is the
+  // single-use enforcement: Postgres takes a row-level lock for UPDATE, so
+  // two concurrent callbacks racing on the same nonce serialize at the row.
+  // The loser's WHERE clause sees a non-null used_at and matches zero rows
+  // — .single() will then return a PGRST116 error and we reject.
+  const { data: marked, error: markUsedErr } = await supabase
     .from('oauth_states')
-    .update({ used_at: new Date().toISOString() }, { count: 'exact' })
+    .update({ used_at: new Date().toISOString() })
     .eq('id', stateRow.id)
     .is('used_at', null)
-    .select('id', { count: 'exact', head: true })
+    .select('id')
+    .single()
 
-  if (markUsedErr || count !== 1) {
-    // Race: someone else (or a retry) consumed the nonce between our SELECT
-    // and UPDATE. Reject.
+  if (markUsedErr || !marked) {
     console.error('[quickbooks/callback] race on state mark-used:', markUsedErr)
     return Response.redirect(`${appUrl}/dashboard?qb_error=invalid_state`)
   }
