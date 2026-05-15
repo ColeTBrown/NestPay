@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireTenant } from '@/lib/auth'
 
 const PLATFORM_FEE_PERCENT = 0.08 // 8%
 
 export async function POST(req: NextRequest) {
   try {
-    const { tenantId, paymentMonth, saveCard } = await req.json()
+    // C2: previously took tenantId from the request body, allowing any
+    // unauthenticated caller to mint Stripe payment intents for any
+    // tenant, enumerate the tenant table, and amplify Stripe API costs.
+    // Now we derive the caller's own tenant row from session.user.id.
+    // requireTenant() returns 403 on zero matches and 403 + console.error
+    // on >1 matches (data integrity bug worth investigating).
+    const auth = await requireTenant()
+    if ('response' in auth) return auth.response
+    const tenantId = auth.tenantId
+
+    const { paymentMonth, saveCard } = await req.json()
+    if (typeof paymentMonth !== 'string' || !paymentMonth) {
+      return NextResponse.json({ error: 'Missing paymentMonth' }, { status: 400 })
+    }
 
     // Get tenant with unit, property, and landlord profile
     const { data: tenant, error } = await supabaseAdmin
@@ -90,6 +104,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ clientSecret: paymentIntent.client_secret })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[create-payment-intent] error:', err)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

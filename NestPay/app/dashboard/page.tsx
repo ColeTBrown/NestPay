@@ -230,7 +230,7 @@ export default function DashboardPage() {
     const res = await fetch('/api/ai-briefing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ landlordId: id, message: msg, history }),
+      body: JSON.stringify({ message: msg, history }),
     })
     const { reply } = await res.json()
     setMessages([...updated, { role: 'assistant', content: reply }])
@@ -488,7 +488,7 @@ export default function DashboardPage() {
                 )}
                 <button
                   className={qbConnected ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm'}
-                  onClick={() => window.location.href = `/api/quickbooks/auth?landlordId=${landlordId}`}
+                  onClick={() => window.location.href = `/api/quickbooks/auth`}
                 >
                   {qbConnected ? 'Reconnect' : 'Connect QuickBooks'}
                 </button>
@@ -525,7 +525,7 @@ export default function DashboardPage() {
                       alert('Session error — please refresh the page and try again.')
                       return
                     }
-                    window.location.href = `/api/stripe/connect?landlordId=${landlordId}`
+                    window.location.href = `/api/stripe/connect`
                   }}
                 >
                   {stripeConnected ? 'Manage' : 'Connect Stripe'}

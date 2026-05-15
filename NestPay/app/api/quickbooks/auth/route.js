@@ -1,29 +1,46 @@
 // app/api/quickbooks/auth/route.js
+//
+// C4: previously took landlordId from a query string and would mint an OAuth
+// flow for any landlord. Anyone could spam-initiate Intuit OAuth on behalf of
+// any landlord and (combined with the unauthenticated callback) attach their
+// own QuickBooks account to a victim's profile. Now this route requires a
+// landlord session and mints a single-use, user-bound, 10-minute TTL state
+// nonce stored in oauth_states.
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url)
-  const landlordId = searchParams.get('landlordId')
+import crypto from 'node:crypto'
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+import { requireLandlord } from '@/lib/auth'
 
-  if (!landlordId) {
-    return Response.json({ error: 'Missing landlordId' }, { status: 400 })
-  }
+export async function GET() {
+  const auth = await requireLandlord()
+  if ('response' in auth) return auth.response
 
   const clientId = process.env.QUICKBOOKS_CLIENT_ID
   const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI
-  const scope = 'com.intuit.quickbooks.accounting'
+  if (!clientId || !redirectUri) {
+    console.error('[quickbooks/auth] QUICKBOOKS_CLIENT_ID / QUICKBOOKS_REDIRECT_URI not set')
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+  }
 
-  // Encode landlordId in state so we get it back in the callback
-  const state = Buffer.from(JSON.stringify({ landlordId })).toString('base64')
+  const nonce = crypto.randomBytes(32).toString('hex')
+  const { error } = await supabaseAdmin.from('oauth_states').insert({
+    user_id: auth.landlordId,
+    nonce,
+    provider: 'quickbooks',
+  })
+  if (error) {
+    console.error('[quickbooks/auth] failed to mint oauth state:', error)
+    return NextResponse.json({ error: 'Could not start OAuth flow' }, { status: 500 })
+  }
 
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: scope,
-    state: state,
+    scope: 'com.intuit.quickbooks.accounting',
+    state: nonce,
   })
 
-  const authUrl = `https://appcenter.intuit.com/connect/oauth2?${params.toString()}`
-
-  return Response.redirect(authUrl)
+  return NextResponse.redirect(`https://appcenter.intuit.com/connect/oauth2?${params.toString()}`)
 }

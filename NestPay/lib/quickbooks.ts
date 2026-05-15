@@ -1,18 +1,17 @@
-// app/api/quickbooks/sync/route.js
+import 'server-only'
+import { supabaseAdmin } from '@/lib/supabase'
 
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
+// QuickBooks Online sync helpers, lifted out of /api/quickbooks/sync so the
+// Stripe webhook can call them directly instead of fanning out via HTTP.
+// (See PR #1: removing the public /api/quickbooks/sync endpoint that allowed
+// anyone to inject fake income entries into any landlord's QB.)
 
 const QB_BASE_URL =
   process.env.QUICKBOOKS_ENVIRONMENT === 'sandbox'
     ? 'https://sandbox-quickbooks.api.intuit.com'
     : 'https://quickbooks.api.intuit.com'
 
-async function refreshAccessToken(refreshToken, realmId, landlordId) {
+async function refreshAccessToken(refreshToken: string, landlordId: string) {
   const clientId = process.env.QUICKBOOKS_CLIENT_ID
   const clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
@@ -31,12 +30,10 @@ async function refreshAccessToken(refreshToken, realmId, landlordId) {
   })
 
   const tokenData = await response.json()
-
   if (!response.ok) {
     throw new Error(`Token refresh failed: ${JSON.stringify(tokenData)}`)
   }
-
-  await supabase
+  await supabaseAdmin
     .from('quickbooks_tokens')
     .update({
       access_token: tokenData.access_token,
@@ -44,47 +41,55 @@ async function refreshAccessToken(refreshToken, realmId, landlordId) {
       updated_at: new Date().toISOString(),
     })
     .eq('landlord_id', landlordId)
-
   return tokenData.access_token
 }
 
-async function getValidAccessToken(landlordId) {
-  const { data: tokenRow, error } = await supabase
+async function getValidAccessToken(landlordId: string) {
+  const { data: tokenRow, error } = await supabaseAdmin
     .from('quickbooks_tokens')
     .select('*')
     .eq('landlord_id', landlordId)
     .single()
-
   if (error || !tokenRow) {
     throw new Error('No QuickBooks tokens found for this landlord. Please connect QuickBooks first.')
   }
-
   const tokenAge = (Date.now() - new Date(tokenRow.updated_at).getTime()) / 1000
   if (tokenAge >= tokenRow.expires_in - 60) {
-    const newToken = await refreshAccessToken(tokenRow.refresh_token, tokenRow.realm_id, landlordId)
+    const newToken = await refreshAccessToken(tokenRow.refresh_token, landlordId)
     return { accessToken: newToken, realmId: tokenRow.realm_id }
   }
-
   return { accessToken: tokenRow.access_token, realmId: tokenRow.realm_id }
 }
 
-async function createSalesReceipt({ accessToken, realmId, amount, tenantName, unitName, paymentDate, stripePaymentId }) {
+export type RentReceipt = {
+  /** dollars (not cents) */
+  amount: number
+  tenantName: string
+  unitName: string
+  /** ISO date YYYY-MM-DD */
+  paymentDate: string
+  stripePaymentId: string
+}
+
+export async function syncRentToQuickBooks(landlordId: string, receipt: RentReceipt) {
+  const { accessToken, realmId } = await getValidAccessToken(landlordId)
+
   const salesReceipt = {
     Line: [
       {
-        Amount: amount,
+        Amount: receipt.amount,
         DetailType: 'SalesItemLineDetail',
         SalesItemLineDetail: {
           ItemRef: { value: '1', name: 'Services' },
           Qty: 1,
-          UnitPrice: amount,
+          UnitPrice: receipt.amount,
         },
-        Description: `Rent payment - ${unitName} - ${tenantName}`,
+        Description: `Rent payment - ${receipt.unitName} - ${receipt.tenantName}`,
       },
     ],
-    CustomerRef: { name: tenantName },
-    TxnDate: paymentDate,
-    PrivateNote: `Stripe Payment ID: ${stripePaymentId}`,
+    CustomerRef: { name: receipt.tenantName },
+    TxnDate: receipt.paymentDate,
+    PrivateNote: `Stripe Payment ID: ${receipt.stripePaymentId}`,
     PaymentMethodRef: { value: '1' },
   }
 
@@ -99,38 +104,8 @@ async function createSalesReceipt({ accessToken, realmId, amount, tenantName, un
   })
 
   const data = await response.json()
-
   if (!response.ok) {
     throw new Error(`QuickBooks API error: ${JSON.stringify(data)}`)
   }
-
   return data
-}
-
-export async function POST(request) {
-  try {
-    const body = await request.json()
-    const { amount, tenantName, unitName, paymentDate, stripePaymentId, landlordId } = body
-
-    if (!amount || !tenantName || !landlordId) {
-      return Response.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    const { accessToken, realmId } = await getValidAccessToken(landlordId)
-
-    const receipt = await createSalesReceipt({
-      accessToken,
-      realmId,
-      amount: amount / 100,
-      tenantName,
-      unitName: unitName || 'Rental Unit',
-      paymentDate: paymentDate || new Date().toISOString().split('T')[0],
-      stripePaymentId,
-    })
-
-    return Response.json({ success: true, receipt })
-  } catch (err) {
-    console.error('QuickBooks sync error:', err)
-    return Response.json({ error: err.message }, { status: 500 })
-  }
 }
