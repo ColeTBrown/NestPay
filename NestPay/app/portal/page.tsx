@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
@@ -139,140 +139,9 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
   )
 }
 
-function AISupportTab({ tenant, unit }: { tenant: any, unit: any }) {
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    {
-      role: 'assistant',
-      content: `Hi ${tenant?.full_name?.split(' ')[0] || 'there'}! I'm your Rentidge support assistant. I can help you with maintenance questions, renting advice, and anything about your unit. What can I help you with?`
-    }
-  ])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const chatRef = useRef<HTMLDivElement>(null)
-
-  const suggested = [
-    'My faucet is dripping — is that urgent?',
-    'What maintenance am I responsible for?',
-    'How do I submit a maintenance request?',
-    'My heat isn\'t working, what should I do?',
-  ]
-
-  async function sendMessage(msg: string) {
-    if (!msg.trim() || loading) return
-    setLoading(true)
-    const updated = [...messages, { role: 'user' as const, content: msg }]
-    setMessages(updated)
-    setInput('')
-
-    try {
-      const res = await fetch('/api/ai-briefing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: msg,
-          history: messages,
-          tenantContext: {
-            name: tenant?.full_name,
-            unit: unit?.unit_number,
-            property: unit?.properties?.name,
-            monthlyRent: unit?.monthly_rent,
-          },
-          systemPrompt: `You are a helpful tenant support assistant for Rentidge, a property management platform. 
-You help tenants with:
-- Maintenance questions (what's urgent, DIY fixes, when to submit a request)
-- Understanding their responsibilities as a tenant vs landlord responsibilities
-- General renting advice and tenant rights
-- How to use Rentidge features (submitting requests, paying rent, etc.)
-
-The tenant you're helping is ${tenant?.full_name}, living in Unit ${unit?.unit_number} at ${unit?.properties?.name}, paying $${unit?.monthly_rent}/month.
-
-Be friendly, concise, and practical. If something sounds like a safety emergency (gas leak, fire, flooding), always tell them to call emergency services first. 
-Do not discuss specific lease terms you don't have access to. If a question requires landlord involvement, suggest they contact their landlord through the maintenance request system.`,
-        }),
-      })
-      const { reply } = await res.json()
-      setMessages([...updated, { role: 'assistant', content: reply }])
-    } catch {
-      setMessages([...updated, { role: 'assistant', content: 'Sorry, I had trouble connecting. Please try again.' }])
-    }
-
-    setLoading(false)
-    setTimeout(() => chatRef.current?.scrollTo(0, chatRef.current.scrollHeight), 100)
-  }
-
-  return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 0, padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 32, height: 32, background: 'var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#020617' }}>AI</div>
-        <div>
-          <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)' }}>Rentidge Support</div>
-          <div style={{ fontSize: 12, color: 'var(--text2)' }}>AI-powered · Always available</div>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4ade80' }}>
-          <span style={{ width: 6, height: 6, background: '#4ade80', borderRadius: '50%', display: 'inline-block' }}></span>
-          Online
-        </div>
-      </div>
-
-      <div ref={chatRef} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 420, overflowY: 'auto' }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 8, alignItems: 'flex-end' }}>
-            {m.role === 'assistant' && (
-              <div style={{ width: 28, height: 28, background: 'var(--bg3)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text)', flexShrink: 0 }}>AI</div>
-            )}
-            <div style={{
-              maxWidth: '75%',
-              padding: '10px 14px',
-              borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-              background: m.role === 'user' ? 'var(--accent)' : 'var(--bg3)',
-              color: m.role === 'user' ? '#020617' : 'var(--text)',
-              fontSize: 14,
-              lineHeight: 1.5,
-            }}>
-              {m.content}
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ width: 28, height: 28, background: 'var(--bg3)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>AI</div>
-            <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 4px', background: 'var(--bg3)', fontSize: 14, color: 'var(--text3)' }}>
-              Thinking...
-            </div>
-          </div>
-        )}
-      </div>
-
-      {messages.length <= 1 && (
-        <div style={{ padding: '0 20px 16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {suggested.map(q => (
-            <button key={q} className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => sendMessage(q)}>
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !loading && sendMessage(input)}
-          placeholder="Ask a question about your unit..."
-          disabled={loading}
-          style={{ flex: 1 }}
-        />
-        <button className="btn btn-primary btn-sm" onClick={() => sendMessage(input)} disabled={loading || !input.trim()}>
-          Send
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function PortalPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'pay' | 'maintenance' | 'history' | 'support'>('pay')
+  const [tab, setTab] = useState<'pay' | 'maintenance' | 'history'>('pay')
   const [tenant, setTenant] = useState<any>(null)
   const [unit, setUnit] = useState<any>(null)
   const [payments, setPayments] = useState<any[]>([])
@@ -411,9 +280,9 @@ export default function PortalPage() {
         </div>
 
         <div className="tabs">
-          {(['pay', 'maintenance', 'history', 'support'] as const).map(t => (
+          {(['pay', 'maintenance', 'history'] as const).map(t => (
             <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'pay' ? 'Rent' : t === 'maintenance' ? 'Maintenance' : t === 'history' ? 'History' : 'Support'}
+              {t === 'pay' ? 'Rent' : t === 'maintenance' ? 'Maintenance' : 'History'}
             </button>
           ))}
         </div>
@@ -546,9 +415,6 @@ export default function PortalPage() {
           </div>
         )}
 
-        {tab === 'support' && (
-          <AISupportTab tenant={tenant} unit={unit} />
-        )}
       </div>
     </>
   )
