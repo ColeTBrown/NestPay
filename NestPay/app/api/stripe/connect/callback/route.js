@@ -11,14 +11,10 @@
 // dashboard, not an OAuth callback handled by an external party.
 
 import Stripe from 'stripe'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-)
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rentidge.com'
 
@@ -28,7 +24,7 @@ export async function GET() {
   const landlordId = auth.landlordId
 
   try {
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('stripe_account_id')
       .eq('id', landlordId)
@@ -41,7 +37,7 @@ export async function GET() {
     const account = await stripe.accounts.retrieve(profile.stripe_account_id)
     const onboardingComplete = account.details_submitted
 
-    await supabase
+    await supabaseAdmin
       .from('profiles')
       .update({ stripe_onboarding_complete: onboardingComplete })
       .eq('id', landlordId)

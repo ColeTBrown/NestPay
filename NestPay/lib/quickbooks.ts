@@ -1,5 +1,5 @@
 import 'server-only'
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 // QuickBooks Online sync helpers, lifted out of /api/quickbooks/sync so the
 // Stripe webhook can call them directly instead of fanning out via HTTP.
