@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireTenant } from '@/lib/auth'
+import { rateLimit } from '@/lib/ratelimit'
 
 const PLATFORM_FEE_PERCENT = 0.08 // 8%
 
@@ -16,6 +17,9 @@ export async function POST(req: NextRequest) {
     const auth = await requireTenant()
     if ('response' in auth) return auth.response
     const tenantId = auth.tenantId
+
+    const limited = await rateLimit('payment', auth.userId)
+    if (limited) return limited
 
     const { paymentMonth, saveCard } = await req.json()
     if (typeof paymentMonth !== 'string' || !paymentMonth) {

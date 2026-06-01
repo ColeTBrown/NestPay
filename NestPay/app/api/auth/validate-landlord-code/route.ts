@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
+import { rateLimit, getClientIp } from '@/lib/ratelimit'
 
 // Pre-signup gate. Cannot use session auth because the user has no account
-// yet. Will get rate-limited in PR #2 (fail-closed under Upstash outage —
-// the whole point of rate-limiting this is brute-force protection).
+// yet — so it's rate-limited per-IP, FAIL-CLOSED (an Upstash outage 503s
+// rather than reopening the brute-force window). Known limitation: per-IP is
+// defeated by residential-proxy rotation; out of scope (would need
+// IP-reputation / device fingerprinting).
 
 export async function POST(req: NextRequest) {
+  const limited = await rateLimit('landlordCode', getClientIp(req))
+  if (limited) return limited
+
   const expected = process.env.LANDLORD_INVITE_CODE
 
   if (!expected) {

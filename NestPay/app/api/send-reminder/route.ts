@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { requireUser } from '@/lib/auth'
+import { rateLimit } from '@/lib/ratelimit'
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,9 @@ export async function POST(req: NextRequest) {
     // cookie trust) and gates the landlord-ownership check below.
     const auth = await requireUser()
     if ('response' in auth) return auth.response
+
+    const limited = await rateLimit('sendReminder', auth.userId)
+    if (limited) return limited
 
     const { tenantId } = await req.json()
     if (!tenantId) {

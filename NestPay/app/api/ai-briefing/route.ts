@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
+import { rateLimit } from '@/lib/ratelimit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
     const auth = await requireLandlord()
     if ('response' in auth) return auth.response
     const landlordId = auth.landlordId
+
+    const limited = await rateLimit('aiBriefing', landlordId)
+    if (limited) return limited
 
     const { message, history } = await req.json()
     if (typeof message !== 'string' || !message.trim()) {
