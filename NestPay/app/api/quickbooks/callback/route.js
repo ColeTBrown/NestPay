@@ -16,13 +16,8 @@
 //      this returns an error and they have to re-login + restart the OAuth
 //      flow. Acceptable UX trade-off (audit notes: PR #1 OAuth UX call).
 
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-)
 
 export async function GET(request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.rentidge.com'
@@ -49,7 +44,7 @@ export async function GET(request) {
 
   // Validate state nonce: must exist, be owned by this user, not expired,
   // not already used. Atomically mark used by gating on used_at IS NULL.
-  const { data: stateRow, error: stateLookupErr } = await supabase
+  const { data: stateRow, error: stateLookupErr } = await supabaseAdmin
     .from('oauth_states')
     .select('id, user_id, expires_at, used_at')
     .eq('nonce', state)
@@ -77,7 +72,7 @@ export async function GET(request) {
   // two concurrent callbacks racing on the same nonce serialize at the row.
   // The loser's WHERE clause sees a non-null used_at and matches zero rows
   // — .single() will then return a PGRST116 error and we reject.
-  const { data: marked, error: markUsedErr } = await supabase
+  const { data: marked, error: markUsedErr } = await supabaseAdmin
     .from('oauth_states')
     .update({ used_at: new Date().toISOString() })
     .eq('id', stateRow.id)
@@ -118,7 +113,7 @@ export async function GET(request) {
     }
 
     // Store tokens for THIS landlord (derived from session, never query).
-    const { error: dbError } = await supabase
+    const { error: dbError } = await supabaseAdmin
       .from('quickbooks_tokens')
       .upsert({
         landlord_id: landlordId,

@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
