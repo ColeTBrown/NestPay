@@ -11,10 +11,14 @@ import crypto from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
+import { rateLimit } from '@/lib/ratelimit'
 
 export async function GET() {
   const auth = await requireLandlord()
   if ('response' in auth) return auth.response
+
+  const limited = await rateLimit('qbConnect', auth.landlordId)
+  if (limited) return limited
 
   const clientId = process.env.QUICKBOOKS_CLIENT_ID
   const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI

@@ -2,6 +2,7 @@ import Stripe from 'stripe'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
+import { rateLimit } from '@/lib/ratelimit'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
@@ -15,6 +16,9 @@ export async function GET() {
   const auth = await requireLandlord()
   if ('response' in auth) return auth.response
   const landlordId = auth.landlordId
+
+  const limited = await rateLimit('stripeConnect', landlordId)
+  if (limited) return limited
 
   try {
     const { data: profile, error: profileError } = await supabaseAdmin
