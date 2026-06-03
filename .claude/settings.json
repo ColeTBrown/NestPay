@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(npm view *)",
+      "Bash(npm audit *)",
+      "mcp__github__get_commit",
+      "mcp__github__get_file_contents"
+    ]
+  }
+}
