@@ -24,7 +24,10 @@ function QuickBooksLogo() {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'overview' | 'properties' | 'maintenance' | 'ai'>('overview')
+  const [tab, setTab] = useState<'overview' | 'properties' | 'maintenance' | 'ai' | 'settings'>('overview')
+  const [requireLastMonth, setRequireLastMonth] = useState(false)
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
   const [landlordId, setLandlordId] = useState('')
   const [properties, setProperties] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
@@ -105,11 +108,43 @@ export default function DashboardPage() {
       await loadData(lid)
       await checkQBConnection(lid)
       await checkStripeConnection(lid)
+      await loadSettings()
       setLoading(false)
       sendAI("Give me today's daily briefing for my properties.", lid, [])
     }
     load()
   }, [router])
+
+  async function loadSettings() {
+    try {
+      const res = await fetch('/api/landlord/settings')
+      if (!res.ok) return
+      const data = await res.json()
+      setRequireLastMonth(!!data.require_last_month_rent)
+    } catch (err) {
+      console.error('[loadSettings] error:', err)
+    }
+  }
+
+  async function saveSettings(next: { require_last_month_rent: boolean }) {
+    setSettingsLoading(true)
+    setSettingsSaved(false)
+    try {
+      const res = await fetch('/api/landlord/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      })
+      if (res.ok) {
+        setRequireLastMonth(next.require_last_month_rent)
+        setSettingsSaved(true)
+        setTimeout(() => setSettingsSaved(false), 2000)
+      }
+    } catch (err) {
+      console.error('[saveSettings] error:', err)
+    }
+    setSettingsLoading(false)
+  }
 
   async function addProperty() {
     setPropertyLoading(true)
@@ -292,9 +327,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="tabs">
-          {(['overview', 'properties', 'maintenance', 'ai'] as const).map(t => (
+          {(['overview', 'properties', 'maintenance', 'ai', 'settings'] as const).map(t => (
             <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'overview' ? 'Payments' : t === 'properties' ? 'Properties' : t === 'maintenance' ? 'Maintenance' : 'AI assistant'}
+              {t === 'overview' ? 'Payments' : t === 'properties' ? 'Properties' : t === 'maintenance' ? 'Maintenance' : t === 'ai' ? 'AI assistant' : 'Settings'}
             </button>
           ))}
         </div>
@@ -628,6 +663,63 @@ export default function DashboardPage() {
               {['Which units are late?', 'Any urgent maintenance?', 'Recommend a plumber', 'Who needs lease renewal?'].map(q => (
                 <button key={q} className="btn btn-ghost btn-sm" onClick={() => sendAI(q)}>{q}</button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {tab === 'settings' && (
+          <div>
+            <div className="label">Rent collection</div>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', marginBottom: 6 }}>
+                    Collect first + last month's rent at move-in
+                  </div>
+                  <div style={{ color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>
+                    When enabled, new tenants pay 2× monthly rent on move-in. The second month is held by you and auto-credits the tenant's final lease month — they pay $0 that month.
+                  </div>
+                  <div style={{ color: 'var(--text3)', fontSize: 12, marginTop: 8 }}>
+                    Applies to tenants who haven't yet paid move-in. Existing tenants are not affected.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                  <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, cursor: settingsLoading ? 'wait' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={requireLastMonth}
+                      disabled={settingsLoading}
+                      onChange={e => saveSettings({ require_last_month_rent: e.target.checked })}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: requireLastMonth ? 'var(--accent)' : 'var(--bg3)',
+                        borderRadius: 12,
+                        transition: 'background 0.2s',
+                      }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 2,
+                        left: requireLastMonth ? 22 : 2,
+                        width: 20,
+                        height: 20,
+                        background: '#fff',
+                        borderRadius: '50%',
+                        transition: 'left 0.2s',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                      }}
+                    />
+                  </label>
+                  {settingsSaved && (
+                    <span style={{ fontSize: 11, color: 'var(--green)' }}>Saved</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

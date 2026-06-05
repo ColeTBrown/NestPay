@@ -6,14 +6,10 @@ import { rateLimit } from '@/lib/ratelimit'
 
 const PLATFORM_FEE_PERCENT = 0.08 // 8%
 
+type PaymentType = 'monthly' | 'move_in'
+
 export async function POST(req: NextRequest) {
   try {
-    // C2: previously took tenantId from the request body, allowing any
-    // unauthenticated caller to mint Stripe payment intents for any
-    // tenant, enumerate the tenant table, and amplify Stripe API costs.
-    // Now we derive the caller's own tenant row from session.user.id.
-    // requireTenant() returns 403 on zero matches and 403 + console.error
-    // on >1 matches (data integrity bug worth investigating).
     const auth = await requireTenant()
     if ('response' in auth) return auth.response
     const tenantId = auth.tenantId
@@ -21,12 +17,13 @@ export async function POST(req: NextRequest) {
     const limited = await rateLimit('payment', auth.userId)
     if (limited) return limited
 
-    const { paymentMonth, saveCard } = await req.json()
-    if (typeof paymentMonth !== 'string' || !paymentMonth) {
+    const body = await req.json()
+    const paymentType: PaymentType = body?.paymentType === 'move_in' ? 'move_in' : 'monthly'
+    const { paymentMonth, saveCard } = body
+    if (paymentType === 'monthly' && (typeof paymentMonth !== 'string' || !paymentMonth)) {
       return NextResponse.json({ error: 'Missing paymentMonth' }, { status: 400 })
     }
 
-    // Get tenant with unit, property, and landlord profile
     const { data: tenant, error } = await supabaseAdmin
       .from('tenants')
       .select(`
@@ -47,15 +44,13 @@ export async function POST(req: NextRequest) {
     }
 
     const landlordId = tenant.units?.properties?.landlord_id
-
     if (!landlordId) {
       return NextResponse.json({ error: 'Landlord not found for this unit' }, { status: 404 })
     }
 
-    // Get landlord's Stripe Connect account
     const { data: landlordProfile } = await supabaseAdmin
       .from('profiles')
-      .select('stripe_account_id, stripe_onboarding_complete')
+      .select('stripe_account_id, stripe_onboarding_complete, require_last_month_rent')
       .eq('id', landlordId)
       .single()
 
@@ -63,47 +58,121 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Landlord has not connected their Stripe account yet' }, { status: 400 })
     }
 
+    const monthlyRent = Number(tenant.units.monthly_rent)
+    const requireLastMonth = landlordProfile.require_last_month_rent === true
     const stripeAccountId = landlordProfile.stripe_account_id
-    const amountCents = Math.round(tenant.units.monthly_rent * 100)
-    const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT)
 
-    // Create or retrieve Stripe customer
-    let customerId = tenant.stripe_customer_id
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: tenant.email,
-        name: tenant.full_name,
-        metadata: { tenantId, unitId: tenant.unit_id },
+    // Move-in payment branch: charge 2× monthly_rent, mark category, record
+    // half as "held" once the webhook confirms success.
+    if (paymentType === 'move_in') {
+      if (!requireLastMonth) {
+        return NextResponse.json({ error: 'Move-in payment not required for this landlord' }, { status: 400 })
+      }
+      if (tenant.move_in_paid) {
+        return NextResponse.json({ error: 'Move-in already paid' }, { status: 409 })
+      }
+
+      const moveInAmount = monthlyRent * 2
+      const amountCents = Math.round(moveInAmount * 100)
+      const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT)
+
+      const customerId = await ensureStripeCustomer(tenant, tenantId)
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: 'usd',
+        customer: customerId,
+        setup_future_usage: saveCard ? 'off_session' : undefined,
+        metadata: {
+          tenantId,
+          unitId: tenant.unit_id,
+          paymentType: 'move_in',
+        },
+        description: `Rentidge move-in (first + last) — ${tenant.units?.properties?.name || ''}`,
+        application_fee_amount: platformFeeCents,
+        transfer_data: { destination: stripeAccountId },
       })
-      customerId = customer.id
-      await supabaseAdmin
-        .from('tenants')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', tenantId)
+
+      await supabaseAdmin.from('payments').insert({
+        tenant_id: tenantId,
+        unit_id: tenant.unit_id,
+        amount: moveInAmount,
+        stripe_payment_intent_id: paymentIntent.id,
+        status: 'pending',
+        payment_month: new Date().toISOString().slice(0, 7),
+        category: 'move_in',
+      })
+
+      return NextResponse.json({ clientSecret: paymentIntent.client_secret })
     }
 
-    // Create payment intent routed to landlord's Stripe account
+    // Monthly payment branch.
+
+    // Block monthly payments if the landlord requires move-in and the
+    // tenant hasn't paid it yet. Forces the move-in flow before regular rent.
+    if (requireLastMonth && !tenant.move_in_paid) {
+      return NextResponse.json(
+        { error: 'Move-in payment required before monthly rent', code: 'move_in_required' },
+        { status: 409 },
+      )
+    }
+
+    // Auto-credit the held last month when the tenant is paying their final
+    // lease month. We use the tenant's lease_end (YYYY-MM-DD) -> YYYY-MM to
+    // compare. If lease_end is null we skip the credit logic (no lease end
+    // recorded = treat as ongoing tenancy).
+    const heldAmount = Number(tenant.last_month_held_amount) || 0
+    const leaseEndMonth = tenant.lease_end ? String(tenant.lease_end).slice(0, 7) : null
+    const isFinalLeaseMonth = leaseEndMonth !== null && leaseEndMonth === paymentMonth
+
+    if (isFinalLeaseMonth && heldAmount > 0) {
+      // Synthesize a $0-out-of-pocket payment row covering this month and
+      // drain the held amount. No Stripe call — funds are already with the
+      // landlord from the move-in payment.
+      await supabaseAdmin.from('payments').insert({
+        tenant_id: tenantId,
+        unit_id: tenant.unit_id,
+        amount: heldAmount,
+        stripe_payment_intent_id: null,
+        status: 'succeeded',
+        payment_month: paymentMonth,
+        paid_at: new Date().toISOString(),
+        category: 'last_month_credit',
+      })
+      await supabaseAdmin
+        .from('tenants')
+        .update({ last_month_held_amount: 0 })
+        .eq('id', tenantId)
+
+      return NextResponse.json({
+        coveredByHeldDeposit: true,
+        amount: heldAmount,
+      })
+    }
+
+    const amountCents = Math.round(monthlyRent * 100)
+    const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT)
+    const customerId = await ensureStripeCustomer(tenant, tenantId)
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: 'usd',
       customer: customerId,
       setup_future_usage: saveCard ? 'off_session' : undefined,
-      metadata: { tenantId, unitId: tenant.unit_id, paymentMonth },
+      metadata: { tenantId, unitId: tenant.unit_id, paymentMonth, paymentType: 'monthly' },
       description: `Rentidge rent — ${paymentMonth} — ${tenant.units?.properties?.name || ''}`,
       application_fee_amount: platformFeeCents,
-      transfer_data: {
-        destination: stripeAccountId,
-      },
+      transfer_data: { destination: stripeAccountId },
     })
 
-    // Record payment in Supabase
     await supabaseAdmin.from('payments').insert({
       tenant_id: tenantId,
       unit_id: tenant.unit_id,
-      amount: tenant.units.monthly_rent,
+      amount: monthlyRent,
       stripe_payment_intent_id: paymentIntent.id,
       status: 'pending',
       payment_month: paymentMonth,
+      category: 'monthly_rent',
     })
 
     return NextResponse.json({ clientSecret: paymentIntent.client_secret })
@@ -111,4 +180,19 @@ export async function POST(req: NextRequest) {
     console.error('[create-payment-intent] error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
+}
+
+async function ensureStripeCustomer(tenant: any, tenantId: string): Promise<string> {
+  if (tenant.stripe_customer_id) return tenant.stripe_customer_id
+
+  const customer = await stripe.customers.create({
+    email: tenant.email,
+    name: tenant.full_name,
+    metadata: { tenantId, unitId: tenant.unit_id },
+  })
+  await supabaseAdmin
+    .from('tenants')
+    .update({ stripe_customer_id: customer.id })
+    .eq('id', tenantId)
+  return customer.id
 }
