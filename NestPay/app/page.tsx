@@ -41,15 +41,21 @@ export default function LandingPage() {
   }
 
   return (
-    <>
+    <div className="landing-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
+        /* Landing-page-only styles. The Google Fonts <link> is in app/layout.tsx <head>
+           (inline @import here got HTML-escaped by React, breaking the URL — see PR notes).
+           Landing colors are scoped to .landing-root so they CANNOT leak into the
+           authenticated dashboard, which uses globals.css's dark theme. Previously this
+           was an html/body !important override, which caused a brief flash of light
+           background when navigating from /  →  /dashboard before the style unmounted. */
 
-        html, body {
-          background: #f7f6f3 !important;
+        .landing-root {
+          background: #f7f6f3;
           color: #1a1a1a;
           font-family: 'DM Sans', sans-serif;
           -webkit-font-smoothing: antialiased;
+          min-height: 100vh;
         }
 
         .nav-legacy {
@@ -285,6 +291,6 @@ export default function LandingPage() {
         </div>
         <p className="footer-copy">© {new Date().getFullYear()} Rentidge. All rights reserved.</p>
       </footer>
-    </>
+    </div>
   )
 }
