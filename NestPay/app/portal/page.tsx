@@ -154,6 +154,24 @@ export default function PortalPage() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
   const [userId, setUserId] = useState('')
   const [userEmail, setUserEmail] = useState('')
+  const [moveInStatus, setMoveInStatus] = useState<{
+    requireLastMonth: boolean
+    moveInPaid: boolean
+    moveInAmount: number
+    monthlyRent: number
+    lastMonthHeldAmount: number
+  } | null>(null)
+  const [coveredByDeposit, setCoveredByDeposit] = useState(false)
+
+  async function loadMoveInStatus() {
+    try {
+      const res = await fetch('/api/tenant/move-in-status')
+      if (!res.ok) return
+      setMoveInStatus(await res.json())
+    } catch (err) {
+      console.error('[loadMoveInStatus] error:', err)
+    }
+  }
 
   async function loadTenantData(uid: string) {
     const { data: t } = await supabase
@@ -194,6 +212,7 @@ export default function PortalPage() {
       setUserId(session.user.id)
       setUserEmail(session.user.email || '')
       await loadTenantData(session.user.id)
+      await loadMoveInStatus()
     }
     load()
   }, [router])
@@ -206,8 +225,36 @@ export default function PortalPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentMonth: month, saveCard: true }),
     })
-    const { clientSecret: cs } = await res.json()
-    setClientSecret(cs)
+    const data = await res.json()
+    if (data.coveredByHeldDeposit) {
+      // Final lease month auto-covered by the held last-month deposit —
+      // no Stripe charge, just reflect the synthesized "paid" row.
+      setCoveredByDeposit(true)
+      await loadTenantData(userId)
+      await loadMoveInStatus()
+      return
+    }
+    setClientSecret(data.clientSecret)
+  }
+
+  async function startMoveInPayment() {
+    if (!tenant) return
+    const res = await fetch('/api/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentType: 'move_in', saveCard: true }),
+    })
+    const data = await res.json()
+    if (data.clientSecret) setClientSecret(data.clientSecret)
+  }
+
+  // After a successful move-in payment, refresh status so the UI flips
+  // from "move-in due" to the normal monthly rent card on the next render.
+  async function onMoveInSuccess() {
+    setPaySuccess(true)
+    setClientSecret(null)
+    await loadMoveInStatus()
+    await loadTenantData(userId)
   }
 
   async function submitRequest() {
@@ -289,7 +336,47 @@ export default function PortalPage() {
 
         {tab === 'pay' && (
           <div>
-            {paySuccess || currentPayment ? (
+            {/* Move-in payment gate: shown when the landlord requires first + last
+                month and this tenant hasn't completed the move-in charge yet. Blocks
+                the regular monthly rent UI until move-in clears. */}
+            {moveInStatus?.requireLastMonth && !moveInStatus.moveInPaid ? (
+              clientSecret ? (
+                <div className="card">
+                  <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
+                    Paying <strong style={{ color: 'var(--text)' }}>${moveInStatus.moveInAmount.toLocaleString()}</strong> — first + last month's rent
+                  </p>
+                  <Elements
+                    stripe={stripePromise}
+                    options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#38BDF8' } } }}
+                  >
+                    <PaymentForm onSuccess={onMoveInSuccess} />
+                  </Elements>
+                </div>
+              ) : (
+                <div className="card">
+                  <div style={{ textAlign: 'center', padding: '16px 0 24px' }}>
+                    <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 4 }}>Move-in payment</div>
+                    <div style={{ fontSize: 52, fontWeight: 500, letterSpacing: -2 }}>${moveInStatus.moveInAmount.toLocaleString()}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>
+                      First + last month's rent
+                    </div>
+                  </div>
+                  <button className="btn btn-primary btn-full" style={{ fontSize: 15, padding: 13 }} onClick={startMoveInPayment}>
+                    Pay move-in with card
+                  </button>
+                  <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text3)', marginTop: 12 }}>
+                    The held last month auto-credits your final month — you'll pay $0 then.
+                  </p>
+                </div>
+              )
+            ) : coveredByDeposit ? (
+              <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+                <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 6, color: 'var(--green)' }}>Final month covered</div>
+                <p style={{ color: 'var(--text2)', fontSize: 14 }}>
+                  Your held last-month deposit was applied to {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}. Nothing to pay this month.
+                </p>
+              </div>
+            ) : paySuccess || currentPayment ? (
               <div className="card" style={{ textAlign: 'center', padding: 32 }}>
                 <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 6, color: 'var(--green)' }}>You're all set</div>
                 <p style={{ color: 'var(--text2)', fontSize: 14 }}>

@@ -64,6 +64,23 @@ export async function POST(req: NextRequest) {
         .eq('id', pi.metadata.tenantId)
     }
 
+    // Move-in payment: half of the 2× charge becomes the held last-month
+    // amount; the tenant is flagged as having paid move-in so the portal
+    // unblocks monthly rent and stops showing the move-in card.
+    if (pi.metadata?.paymentType === 'move_in' && pi.metadata?.tenantId) {
+      const heldAmount = pi.amount / 100 / 2 // half the move-in (= 1× monthly rent)
+      const { error: moveInErr } = await supabaseAdmin
+        .from('tenants')
+        .update({
+          move_in_paid: true,
+          last_month_held_amount: heldAmount,
+        })
+        .eq('id', pi.metadata.tenantId)
+      if (moveInErr) {
+        console.error('[stripe/webhook] failed to mark move_in_paid:', moveInErr)
+      }
+    }
+
     // Sync to QuickBooks inline (replaces the prior public /api/quickbooks/sync
     // HTTP fan-out — see C1 comment at the top of this file).
     let paymentRowId: string | null = null
