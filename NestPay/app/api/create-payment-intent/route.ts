@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/ratelimit'
 
 const PLATFORM_FEE_PERCENT = 0.08 // 8%
 
-type PaymentType = 'monthly' | 'move_in'
+type PaymentType = 'monthly' | 'move_in' | 'security_deposit'
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
     if (limited) return limited
 
     const body = await req.json()
-    const paymentType: PaymentType = body?.paymentType === 'move_in' ? 'move_in' : 'monthly'
+    const paymentType: PaymentType =
+      body?.paymentType === 'move_in' ? 'move_in'
+      : body?.paymentType === 'security_deposit' ? 'security_deposit'
+      : 'monthly'
     const { paymentMonth, saveCard } = body
     if (paymentType === 'monthly' && (typeof paymentMonth !== 'string' || !paymentMonth)) {
       return NextResponse.json({ error: 'Missing paymentMonth' }, { status: 400 })
@@ -30,6 +33,7 @@ export async function POST(req: NextRequest) {
         *,
         units (
           monthly_rent,
+          security_deposit_amount,
           properties (
             landlord_id,
             name
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     const { data: landlordProfile } = await supabaseAdmin
       .from('profiles')
-      .select('stripe_account_id, stripe_onboarding_complete, require_last_month_rent')
+      .select('stripe_account_id, stripe_onboarding_complete, require_last_month_rent, deposit_collection_mode')
       .eq('id', landlordId)
       .single()
 
@@ -59,11 +63,16 @@ export async function POST(req: NextRequest) {
     }
 
     const monthlyRent = Number(tenant.units.monthly_rent)
+    const depositAmount = Number(tenant.units.security_deposit_amount ?? 0)
     const requireLastMonth = landlordProfile.require_last_month_rent === true
+    const depositMode: 'bundled' | 'separate' =
+      landlordProfile.deposit_collection_mode === 'separate' ? 'separate' : 'bundled'
     const stripeAccountId = landlordProfile.stripe_account_id
 
-    // Move-in payment branch: charge 2× monthly_rent, mark category, record
-    // half as "held" once the webhook confirms success.
+    // ---------- move-in branch ----------
+    // Charges 2× monthly_rent, optionally plus the security deposit if the
+    // landlord uses bundled mode and the deposit hasn't already been paid.
+    // The webhook reads metadata to know which tenant flags to flip.
     if (paymentType === 'move_in') {
       if (!requireLastMonth) {
         return NextResponse.json({ error: 'Move-in payment not required for this landlord' }, { status: 400 })
@@ -72,8 +81,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Move-in already paid' }, { status: 409 })
       }
 
-      const moveInAmount = monthlyRent * 2
-      const amountCents = Math.round(moveInAmount * 100)
+      const includeDeposit =
+        depositMode === 'bundled' && depositAmount > 0 && !tenant.security_deposit_paid
+
+      const rentPortion = monthlyRent * 2
+      const totalAmount = rentPortion + (includeDeposit ? depositAmount : 0)
+      const amountCents = Math.round(totalAmount * 100)
       const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT)
 
       const customerId = await ensureStripeCustomer(tenant, tenantId)
@@ -87,8 +100,13 @@ export async function POST(req: NextRequest) {
           tenantId,
           unitId: tenant.unit_id,
           paymentType: 'move_in',
+          // Webhook uses this to know whether to flip security_deposit_paid too.
+          includesDeposit: includeDeposit ? '1' : '0',
+          depositAmount: includeDeposit ? String(depositAmount) : '0',
         },
-        description: `Rentidge move-in (first + last) — ${tenant.units?.properties?.name || ''}`,
+        description: includeDeposit
+          ? `Rentidge move-in (first + last + deposit) — ${tenant.units?.properties?.name || ''}`
+          : `Rentidge move-in (first + last) — ${tenant.units?.properties?.name || ''}`,
         application_fee_amount: platformFeeCents,
         transfer_data: { destination: stripeAccountId },
       })
@@ -96,7 +114,7 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin.from('payments').insert({
         tenant_id: tenantId,
         unit_id: tenant.unit_id,
-        amount: moveInAmount,
+        amount: totalAmount,
         stripe_payment_intent_id: paymentIntent.id,
         status: 'pending',
         payment_month: new Date().toISOString().slice(0, 7),
@@ -106,10 +124,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ clientSecret: paymentIntent.client_secret })
     }
 
-    // Monthly payment branch.
+    // ---------- security deposit branch ----------
+    // Standalone deposit charge. Used when:
+    //   - landlord uses 'separate' mode, OR
+    //   - landlord doesn't require last-month rent at all (no move-in flow
+    //     to bundle into), but the unit does have a deposit set.
+    if (paymentType === 'security_deposit') {
+      if (depositAmount <= 0) {
+        return NextResponse.json({ error: 'No deposit required for this unit' }, { status: 400 })
+      }
+      if (tenant.security_deposit_paid) {
+        return NextResponse.json({ error: 'Deposit already paid' }, { status: 409 })
+      }
 
-    // Block monthly payments if the landlord requires move-in and the
-    // tenant hasn't paid it yet. Forces the move-in flow before regular rent.
+      const amountCents = Math.round(depositAmount * 100)
+      const platformFeeCents = Math.round(amountCents * PLATFORM_FEE_PERCENT)
+      const customerId = await ensureStripeCustomer(tenant, tenantId)
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: 'usd',
+        customer: customerId,
+        setup_future_usage: saveCard ? 'off_session' : undefined,
+        metadata: {
+          tenantId,
+          unitId: tenant.unit_id,
+          paymentType: 'security_deposit',
+          depositAmount: String(depositAmount),
+        },
+        description: `Rentidge security deposit — ${tenant.units?.properties?.name || ''}`,
+        application_fee_amount: platformFeeCents,
+        transfer_data: { destination: stripeAccountId },
+      })
+
+      await supabaseAdmin.from('payments').insert({
+        tenant_id: tenantId,
+        unit_id: tenant.unit_id,
+        amount: depositAmount,
+        stripe_payment_intent_id: paymentIntent.id,
+        status: 'pending',
+        payment_month: new Date().toISOString().slice(0, 7),
+        category: 'security_deposit',
+      })
+
+      return NextResponse.json({ clientSecret: paymentIntent.client_secret })
+    }
+
+    // ---------- monthly branch ----------
+
     if (requireLastMonth && !tenant.move_in_paid) {
       return NextResponse.json(
         { error: 'Move-in payment required before monthly rent', code: 'move_in_required' },
@@ -126,9 +188,6 @@ export async function POST(req: NextRequest) {
     const isFinalLeaseMonth = leaseEndMonth !== null && leaseEndMonth === paymentMonth
 
     if (isFinalLeaseMonth && heldAmount > 0) {
-      // Synthesize a $0-out-of-pocket payment row covering this month and
-      // drain the held amount. No Stripe call — funds are already with the
-      // landlord from the move-in payment.
       await supabaseAdmin.from('payments').insert({
         tenant_id: tenantId,
         unit_id: tenant.unit_id,

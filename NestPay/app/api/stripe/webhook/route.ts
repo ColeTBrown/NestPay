@@ -64,20 +64,47 @@ export async function POST(req: NextRequest) {
         .eq('id', pi.metadata.tenantId)
     }
 
-    // Move-in payment: half of the 2× charge becomes the held last-month
-    // amount; the tenant is flagged as having paid move-in so the portal
-    // unblocks monthly rent and stops showing the move-in card.
+    // Move-in payment: the charge is 2× monthly_rent + optionally the
+    // security deposit (if landlord uses 'bundled' mode and the unit has
+    // a deposit). Both flags get flipped here based on metadata.
     if (pi.metadata?.paymentType === 'move_in' && pi.metadata?.tenantId) {
-      const heldAmount = pi.amount / 100 / 2 // half the move-in (= 1× monthly rent)
+      const includesDeposit = pi.metadata?.includesDeposit === '1'
+      const depositAmount = Number(pi.metadata?.depositAmount ?? 0)
+      const totalCharged = pi.amount / 100
+      const rentPortion = totalCharged - (includesDeposit ? depositAmount : 0)
+      // Held last-month is half the rent portion (rent portion is 2× monthly).
+      const heldLastMonth = rentPortion / 2
+
+      const update: Record<string, unknown> = {
+        move_in_paid: true,
+        last_month_held_amount: heldLastMonth,
+      }
+      if (includesDeposit && depositAmount > 0) {
+        update.security_deposit_paid = true
+        update.security_deposit_held_amount = depositAmount
+      }
       const { error: moveInErr } = await supabaseAdmin
         .from('tenants')
-        .update({
-          move_in_paid: true,
-          last_month_held_amount: heldAmount,
-        })
+        .update(update)
         .eq('id', pi.metadata.tenantId)
       if (moveInErr) {
         console.error('[stripe/webhook] failed to mark move_in_paid:', moveInErr)
+      }
+    }
+
+    // Standalone security deposit payment (separate mode, or no last-month
+    // requirement).
+    if (pi.metadata?.paymentType === 'security_deposit' && pi.metadata?.tenantId) {
+      const depositAmount = Number(pi.metadata?.depositAmount ?? pi.amount / 100)
+      const { error: depositErr } = await supabaseAdmin
+        .from('tenants')
+        .update({
+          security_deposit_paid: true,
+          security_deposit_held_amount: depositAmount,
+        })
+        .eq('id', pi.metadata.tenantId)
+      if (depositErr) {
+        console.error('[stripe/webhook] failed to mark security_deposit_paid:', depositErr)
       }
     }
 

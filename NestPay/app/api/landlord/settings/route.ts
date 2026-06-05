@@ -7,8 +7,8 @@ import { requireLandlord } from '@/lib/auth'
 // of fields. landlordId always comes from the verified session, never the
 // request body, so this can't be used to mutate another landlord's row.
 
-const ALLOWED_FIELDS = ['require_last_month_rent'] as const
-type AllowedField = (typeof ALLOWED_FIELDS)[number]
+const DEPOSIT_MODES = ['bundled', 'separate'] as const
+type DepositMode = (typeof DEPOSIT_MODES)[number]
 
 export async function GET() {
   const auth = await requireLandlord()
@@ -16,7 +16,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('require_last_month_rent')
+    .select('require_last_month_rent, deposit_collection_mode')
     .eq('id', auth.landlordId)
     .single()
 
@@ -27,6 +27,7 @@ export async function GET() {
 
   return NextResponse.json({
     require_last_month_rent: data?.require_last_month_rent ?? false,
+    deposit_collection_mode: data?.deposit_collection_mode ?? 'bundled',
   })
 }
 
@@ -41,9 +42,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const update: Partial<Record<AllowedField, unknown>> = {}
+  const update: Record<string, unknown> = {}
   if (typeof body.require_last_month_rent === 'boolean') {
     update.require_last_month_rent = body.require_last_month_rent
+  }
+  if (typeof body.deposit_collection_mode === 'string' &&
+      (DEPOSIT_MODES as readonly string[]).includes(body.deposit_collection_mode)) {
+    update.deposit_collection_mode = body.deposit_collection_mode as DepositMode
   }
 
   if (Object.keys(update).length === 0) {

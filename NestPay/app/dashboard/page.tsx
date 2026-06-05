@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [tab, setTab] = useState<'overview' | 'properties' | 'maintenance' | 'ai' | 'settings'>('overview')
   const [requireLastMonth, setRequireLastMonth] = useState(false)
+  const [depositCollectionMode, setDepositCollectionMode] = useState<'bundled' | 'separate'>('bundled')
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [landlordId, setLandlordId] = useState('')
@@ -47,7 +48,7 @@ export default function DashboardPage() {
   const [propertyError, setPropertyError] = useState('')
 
   const [showUnitForm, setShowUnitForm] = useState<string | null>(null)
-  const [unitForm, setUnitForm] = useState({ unit_number: '', monthly_rent: '' })
+  const [unitForm, setUnitForm] = useState({ unit_number: '', monthly_rent: '', security_deposit_amount: '' })
   const [unitLoading, setUnitLoading] = useState(false)
   const [unitError, setUnitError] = useState('')
 
@@ -121,12 +122,17 @@ export default function DashboardPage() {
       if (!res.ok) return
       const data = await res.json()
       setRequireLastMonth(!!data.require_last_month_rent)
+      if (data.deposit_collection_mode === 'separate') setDepositCollectionMode('separate')
+      else setDepositCollectionMode('bundled')
     } catch (err) {
       console.error('[loadSettings] error:', err)
     }
   }
 
-  async function saveSettings(next: { require_last_month_rent: boolean }) {
+  async function saveSettings(next: {
+    require_last_month_rent?: boolean
+    deposit_collection_mode?: 'bundled' | 'separate'
+  }) {
     setSettingsLoading(true)
     setSettingsSaved(false)
     try {
@@ -136,7 +142,12 @@ export default function DashboardPage() {
         body: JSON.stringify(next),
       })
       if (res.ok) {
-        setRequireLastMonth(next.require_last_month_rent)
+        if (typeof next.require_last_month_rent === 'boolean') {
+          setRequireLastMonth(next.require_last_month_rent)
+        }
+        if (next.deposit_collection_mode) {
+          setDepositCollectionMode(next.deposit_collection_mode)
+        }
         setSettingsSaved(true)
         setTimeout(() => setSettingsSaved(false), 2000)
       }
@@ -167,16 +178,18 @@ export default function DashboardPage() {
   async function addUnit(propertyId: string) {
     setUnitLoading(true)
     setUnitError('')
+    const depositRaw = unitForm.security_deposit_amount.trim()
     const { error } = await supabase.from('units').insert({
       property_id: propertyId,
       unit_number: unitForm.unit_number.trim(),
       monthly_rent: parseFloat(unitForm.monthly_rent),
+      security_deposit_amount: depositRaw ? parseFloat(depositRaw) : 0,
     })
     if (error) {
       setUnitError(error.message)
     } else {
       setShowUnitForm(null)
-      setUnitForm({ unit_number: '', monthly_rent: '' })
+      setUnitForm({ unit_number: '', monthly_rent: '', security_deposit_amount: '' })
       await loadData(landlordId)
     }
     setUnitLoading(false)
@@ -402,12 +415,21 @@ export default function DashboardPage() {
                         <input type="number" value={unitForm.monthly_rent} onChange={e => setUnitForm({ ...unitForm, monthly_rent: e.target.value })} placeholder="e.g. 1500" />
                       </div>
                     </div>
+                    <div className="field">
+                      <label>Security deposit ($) — optional</label>
+                      <input
+                        type="number"
+                        value={unitForm.security_deposit_amount}
+                        onChange={e => setUnitForm({ ...unitForm, security_deposit_amount: e.target.value })}
+                        placeholder="e.g. 1500 (leave blank for no deposit)"
+                      />
+                    </div>
                     {unitError && <p style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{unitError}</p>}
                     <div style={{ display: 'flex', gap: 10 }}>
                       <button className="btn btn-primary btn-sm" onClick={() => addUnit(property.id)} disabled={unitLoading || !unitForm.unit_number || !unitForm.monthly_rent}>
                         {unitLoading ? 'Saving...' : 'Save unit'}
                       </button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setShowUnitForm(null); setUnitForm({ unit_number: '', monthly_rent: '' }) }}>Cancel</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setShowUnitForm(null); setUnitForm({ unit_number: '', monthly_rent: '', security_deposit_amount: '' }) }}>Cancel</button>
                     </div>
                   </div>
                 )}
@@ -719,6 +741,53 @@ export default function DashboardPage() {
                     <span style={{ fontSize: 11, color: 'var(--green)' }}>Saved</span>
                   )}
                 </div>
+              </div>
+            </div>
+
+            <div className="label">Security deposits</div>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', marginBottom: 6 }}>
+                Deposit collection mode
+              </div>
+              <div style={{ color: 'var(--text2)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
+                Set the deposit amount per-unit when you add or edit a unit. This setting controls whether the deposit is bundled with the move-in charge or collected as a separate transaction.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: settingsLoading ? 'wait' : 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="deposit_collection_mode"
+                    checked={depositCollectionMode === 'bundled'}
+                    disabled={settingsLoading}
+                    onChange={() => saveSettings({ deposit_collection_mode: 'bundled' })}
+                    style={{ marginTop: 3 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--text)' }}>Bundled with move-in</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                      First + last + deposit in one transaction. Cleanest for the tenant.
+                    </div>
+                  </div>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: settingsLoading ? 'wait' : 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="deposit_collection_mode"
+                    checked={depositCollectionMode === 'separate'}
+                    disabled={settingsLoading}
+                    onChange={() => saveSettings({ deposit_collection_mode: 'separate' })}
+                    style={{ marginTop: 3 }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--text)' }}>Separate charge</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                      Two transactions at signup. Easier to see deposit movement distinctly in Stripe.
+                    </div>
+                  </div>
+                </label>
+              </div>
+              <div style={{ marginTop: 14, padding: 12, background: 'var(--bg3)', borderRadius: 6, fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 }}>
+                <strong style={{ color: 'var(--gold)' }}>Heads up:</strong> deposits route through your Stripe Connect account same as rent. In strict-deposit states (NJ, NY, MA, IL, CT) this may not satisfy trust-account requirements. Consult counsel if needed.
               </div>
             </div>
           </div>
