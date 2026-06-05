@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { InlineChart, parseAIMessage } from '@/components/charts/InlineChart'
 
 // Official Stripe wordmark
 function StripeLogo() {
@@ -657,7 +658,15 @@ export default function DashboardPage() {
               {messages.map((m, i) => (
                 <div key={i} className="chat-msg" style={{ justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                   {m.role === 'assistant' && <div className="chat-avatar">AI</div>}
-                  <div className={`chat-bubble ${m.role === 'user' ? 'user' : ''}`}>{m.content}</div>
+                  <div className={`chat-bubble ${m.role === 'user' ? 'user' : ''}`}>
+                    {m.role === 'assistant'
+                      ? parseAIMessage(m.content).map((seg, j) =>
+                          seg.kind === 'chart'
+                            ? <InlineChart key={j} spec={seg.spec} />
+                            : <span key={j} style={{ whiteSpace: 'pre-wrap' }}>{seg.text}</span>,
+                        )
+                      : m.content}
+                  </div>
                 </div>
               ))}
               {aiLoading && (
