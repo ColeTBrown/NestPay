@@ -160,6 +160,11 @@ export default function PortalPage() {
     moveInAmount: number
     monthlyRent: number
     lastMonthHeldAmount: number
+    securityDepositRequired: boolean
+    securityDepositAmount: number
+    securityDepositPaid: boolean
+    securityDepositHeldAmount: number
+    depositCollectionMode: 'bundled' | 'separate'
   } | null>(null)
   const [coveredByDeposit, setCoveredByDeposit] = useState(false)
 
@@ -248,8 +253,19 @@ export default function PortalPage() {
     if (data.clientSecret) setClientSecret(data.clientSecret)
   }
 
-  // After a successful move-in payment, refresh status so the UI flips
-  // from "move-in due" to the normal monthly rent card on the next render.
+  async function startDepositPayment() {
+    if (!tenant) return
+    const res = await fetch('/api/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentType: 'security_deposit', saveCard: true }),
+    })
+    const data = await res.json()
+    if (data.clientSecret) setClientSecret(data.clientSecret)
+  }
+
+  // After a successful move-in/deposit payment, refresh status so the UI
+  // advances to the next required card (or unlocks monthly rent).
   async function onMoveInSuccess() {
     setPaySuccess(true)
     setClientSecret(null)
@@ -334,16 +350,33 @@ export default function PortalPage() {
           ))}
         </div>
 
-        {tab === 'pay' && (
+        {tab === 'pay' && (() => {
+          // Compute card visibility once so the JSX below stays readable.
+          const needsMoveIn = !!(moveInStatus?.requireLastMonth && !moveInStatus.moveInPaid)
+          const bundledDeposit =
+            moveInStatus?.depositCollectionMode === 'bundled' &&
+            !!moveInStatus?.securityDepositRequired &&
+            !moveInStatus?.securityDepositPaid
+          const moveInTotal = needsMoveIn && moveInStatus
+            ? moveInStatus.moveInAmount + (bundledDeposit ? moveInStatus.securityDepositAmount : 0)
+            : 0
+          // Separate-mode deposit card shows when deposit is required, unpaid,
+          // and NOT being bundled into the move-in flow. Also covers the case
+          // where the landlord doesn't require last-month at all (no move-in
+          // flow exists) but the unit still has a deposit.
+          const needsSeparateDeposit = !!(
+            moveInStatus?.securityDepositRequired &&
+            !moveInStatus.securityDepositPaid &&
+            (moveInStatus.depositCollectionMode === 'separate' || !moveInStatus.requireLastMonth)
+          )
+
+          return (
           <div>
-            {/* Move-in payment gate: shown when the landlord requires first + last
-                month and this tenant hasn't completed the move-in charge yet. Blocks
-                the regular monthly rent UI until move-in clears. */}
-            {moveInStatus?.requireLastMonth && !moveInStatus.moveInPaid ? (
+            {needsMoveIn ? (
               clientSecret ? (
                 <div className="card">
                   <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
-                    Paying <strong style={{ color: 'var(--text)' }}>${moveInStatus.moveInAmount.toLocaleString()}</strong> — first + last month's rent
+                    Paying <strong style={{ color: 'var(--text)' }}>${moveInTotal.toLocaleString()}</strong> — {bundledDeposit ? 'first + last month + security deposit' : "first + last month's rent"}
                   </p>
                   <Elements
                     stripe={stripePromise}
@@ -356,9 +389,11 @@ export default function PortalPage() {
                 <div className="card">
                   <div style={{ textAlign: 'center', padding: '16px 0 24px' }}>
                     <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 4 }}>Move-in payment</div>
-                    <div style={{ fontSize: 52, fontWeight: 500, letterSpacing: -2 }}>${moveInStatus.moveInAmount.toLocaleString()}</div>
+                    <div style={{ fontSize: 52, fontWeight: 500, letterSpacing: -2 }}>${moveInTotal.toLocaleString()}</div>
                     <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>
-                      First + last month's rent
+                      {bundledDeposit
+                        ? `First + last month's rent + $${moveInStatus!.securityDepositAmount.toLocaleString()} deposit`
+                        : "First + last month's rent"}
                     </div>
                   </div>
                   <button className="btn btn-primary btn-full" style={{ fontSize: 15, padding: 13 }} onClick={startMoveInPayment}>
@@ -367,6 +402,33 @@ export default function PortalPage() {
                   <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text3)', marginTop: 12 }}>
                     The held last month auto-credits your final month — you'll pay $0 then.
                   </p>
+                </div>
+              )
+            ) : needsSeparateDeposit ? (
+              clientSecret ? (
+                <div className="card">
+                  <p style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
+                    Paying <strong style={{ color: 'var(--text)' }}>${moveInStatus!.securityDepositAmount.toLocaleString()}</strong> — security deposit
+                  </p>
+                  <Elements
+                    stripe={stripePromise}
+                    options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#38BDF8' } } }}
+                  >
+                    <PaymentForm onSuccess={onMoveInSuccess} />
+                  </Elements>
+                </div>
+              ) : (
+                <div className="card">
+                  <div style={{ textAlign: 'center', padding: '16px 0 24px' }}>
+                    <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 4 }}>Security deposit due</div>
+                    <div style={{ fontSize: 52, fontWeight: 500, letterSpacing: -2 }}>${moveInStatus!.securityDepositAmount.toLocaleString()}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>
+                      Refundable at move-out (less any deductions)
+                    </div>
+                  </div>
+                  <button className="btn btn-primary btn-full" style={{ fontSize: 15, padding: 13 }} onClick={startDepositPayment}>
+                    Pay deposit with card
+                  </button>
                 </div>
               )
             ) : coveredByDeposit ? (
@@ -413,7 +475,8 @@ export default function PortalPage() {
               </div>
             )}
           </div>
-        )}
+          )
+        })()}
 
         {tab === 'maintenance' && (
           <div>
