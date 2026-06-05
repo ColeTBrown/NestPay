@@ -14,15 +14,21 @@ function getClient(): Resend {
   return client
 }
 
+export type EmailAttachment = {
+  filename: string
+  content: Buffer | string
+}
+
 export type SendEmailArgs = {
   to: string
   subject: string
   html: string
   text?: string
   from?: string
+  attachments?: EmailAttachment[]
 }
 
-export async function sendEmail({ to, subject, html, text, from }: SendEmailArgs) {
+export async function sendEmail({ to, subject, html, text, from, attachments }: SendEmailArgs) {
   const resend = getClient()
   const { data, error } = await resend.emails.send({
     from: from || FROM_ADDRESS,
@@ -30,6 +36,7 @@ export async function sendEmail({ to, subject, html, text, from }: SendEmailArgs
     subject,
     html,
     text,
+    attachments,
   })
   if (error) {
     throw new Error(`Resend error: ${error.message || 'unknown'}`)
