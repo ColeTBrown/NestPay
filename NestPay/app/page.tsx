@@ -116,6 +116,30 @@ export default function LandingPage() {
         .btn-role { width: 100%; padding: 14px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; border: 1px solid #1a1a1a; background: #1a1a1a; color: #f7f6f3; }
         .btn-role:hover { background: #333; transform: translateY(-1px); }
 
+        .compare-section { padding: 120px 48px; max-width: 1100px; margin: 0 auto; }
+        .compare-wrap { background: #fff; border: 1px solid #e8e6e0; border-radius: 16px; overflow: hidden; }
+        .compare-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .compare-table thead th {
+          font-family: 'DM Sans', sans-serif; font-weight: 500; font-size: 11px;
+          text-transform: uppercase; letter-spacing: 1.2px; color: #999;
+          padding: 22px 24px; text-align: left; background: #faf9f6;
+          border-bottom: 1px solid #e8e6e0;
+        }
+        .compare-table thead th.compare-rentidge-head {
+          background: #1a1a1a; color: #f7f6f3; position: relative;
+        }
+        .compare-table thead th.compare-rentidge-head::before {
+          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #38BDF8;
+        }
+        .compare-table tbody td {
+          padding: 18px 24px; border-bottom: 1px solid #f0ede8; vertical-align: middle;
+        }
+        .compare-table tbody tr:last-child td { border-bottom: none; }
+        .compare-table td.compare-name { font-weight: 500; color: #1a1a1a; }
+        .compare-table td.compare-rentidge { background: rgba(56,189,248,0.06); color: #1a1a1a; font-weight: 500; }
+        .compare-table td.compare-other { color: #777; font-weight: 300; }
+        .compare-footnote { font-size: 12px; color: #999; margin-top: 16px; text-align: center; font-style: italic; }
+
         .footer { padding: 40px 48px; border-top: 1px solid #e8e6e0; display: flex; align-items: center; justify-content: space-between; }
         .footer-logo { font-family: 'DM Serif Display', serif; font-size: 18px; color: #1a1a1a; }
         .footer-logo span { color: #38BDF8; }
@@ -126,7 +150,8 @@ export default function LandingPage() {
 
         @media (max-width: 768px) {
           .nav-legacy { padding: 0 24px; }
-          .features, .roles-section { padding: 80px 24px; }
+          .features, .roles-section, .compare-section { padding: 80px 24px; }
+          .compare-table thead th, .compare-table tbody td { padding: 12px 14px; font-size: 13px; }
           .features-grid { grid-template-columns: 1fr; }
           .roles-grid { grid-template-columns: 1fr; }
           .stats-inner { grid-template-columns: 1fr; gap: 32px; }
@@ -145,6 +170,7 @@ export default function LandingPage() {
       >
         <div className="nav-logo">Rent<span>idge</span></div>
         <div className="nav-actions">
+          <a href="/blog" className="nav-link" style={{ color: '#1a1a1a', textDecoration: 'none', fontSize: 14, marginRight: 8 }}>Blog</a>
           <button className="btn-ghost-nav" onClick={() => router.push('/auth?mode=signin')}>Sign in</button>
           <button className="btn-primary-nav" onClick={() => router.push('/auth?mode=signup')}>Get started</button>
         </div>
@@ -182,7 +208,7 @@ export default function LandingPage() {
               {...heroItem(2)}
               className="text-[17px] sm:text-[18px] font-light text-zinc-600 leading-relaxed max-w-[520px] mx-auto lg:mx-0 mb-9"
             >
-              Rentidge connects landlords and tenants in one seamless platform — payments, maintenance, and accounting all in one place.
+              Rent collection that doesn't feel like a second job. Autopay, maintenance, and books — all on autopilot.
             </motion.p>
 
             <motion.div
@@ -213,16 +239,16 @@ export default function LandingPage() {
 
       {/* Features */}
       <motion.section className="features" {...fadeUpInView}>
-        <p className="section-label">Everything you need</p>
-        <h2 className="section-title">Built for modern property management</h2>
+        <p className="section-label">What changes when you switch</p>
+        <h2 className="section-title">Get the busywork off your plate</h2>
         <div className="features-grid">
           {[
-            { title: 'Online rent payments', desc: 'Tenants pay online, funds go directly to your bank account. Automatic receipts every time.' },
-            { title: 'Maintenance tracking', desc: 'Tenants submit requests, landlords manage and resolve — all in one place with full history.' },
-            { title: 'QuickBooks sync', desc: 'Every payment automatically creates an income entry in QuickBooks. Zero manual bookkeeping.' },
-            { title: 'AI daily briefings', desc: 'Start each day with an AI-generated summary of your portfolio — payments, requests, and more.' },
-            { title: 'Autopay support', desc: 'Tenants can save their card and enable autopay so rent is never late.' },
-            { title: 'Works everywhere', desc: 'Fully responsive — landlords and tenants can use Rentidge on any device.' },
+            { title: 'Get paid by the 3rd, every month', desc: 'Tenants pay online, funds settle to your bank in T+2. Autopay means rent is never late.' },
+            { title: 'Cut maintenance back-and-forth in half', desc: 'Tenants submit, you triage and resolve, history stays with the unit. No more text-message archaeology.' },
+            { title: 'Tax season takes 10 minutes, not 10 hours', desc: 'Every payment auto-syncs to QuickBooks as an income entry. Your accountant will love you.' },
+            { title: 'Know what to do today in 30 seconds', desc: 'AI assistant pulls your portfolio into a daily briefing with charts. Ask follow-ups in plain English.' },
+            { title: 'Never chase rent again', desc: 'Tenants save their card once and autopay handles every month. Alerts fire only when something breaks.' },
+            { title: 'Monthly statements, automatically', desc: 'The 1st of every month: a clean PDF of last month’s income, with an AI summary, in your inbox.' },
           ].map((f, i) => (
             <div key={i} className="feature-card">
               <div className="feature-number">0{i + 1}</div>
@@ -231,6 +257,45 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+      </motion.section>
+
+      {/* Comparison */}
+      <motion.section className="compare-section" {...fadeUpInView}>
+        <p className="section-label">How it stacks up</p>
+        <h2 className="section-title">Stop juggling tools</h2>
+        <div className="compare-wrap">
+          <table className="compare-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th className="compare-rentidge-head">Rentidge</th>
+                <th>Spreadsheets + Venmo</th>
+                <th>Other property tools</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { name: 'Setup time',                 r: 'Under 5 minutes',     diy: 'Hours',              other: 'Hours to days' },
+                { name: 'QuickBooks sync',            r: 'Built-in, automatic', diy: 'Manual CSV exports', other: 'Paid add-on' },
+                { name: 'AI daily briefings',         r: 'Included',            diy: '—',                  other: '—' },
+                { name: 'PDF monthly statements',     r: 'Auto-emailed on the 1st', diy: 'DIY in Excel',   other: 'Manual export' },
+                { name: 'Tenant payment portal',      r: 'Yes',                 diy: '—',                  other: 'Yes' },
+                { name: 'Per-transaction fee',        r: '8%, paid by landlord',diy: 'Free (manual reconcile)', other: '1–3% + monthly fee' },
+                { name: 'Monthly subscription',       r: 'Free during beta',    diy: 'Free',               other: '$25–100+' },
+              ].map((row, i) => (
+                <tr key={i}>
+                  <td className="compare-name">{row.name}</td>
+                  <td className="compare-rentidge">{row.r}</td>
+                  <td className="compare-other">{row.diy}</td>
+                  <td className="compare-other">{row.other}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="compare-footnote">
+          Comparisons reflect typical configurations as of June 2026.
+        </p>
       </motion.section>
 
       {/* Stats */}
