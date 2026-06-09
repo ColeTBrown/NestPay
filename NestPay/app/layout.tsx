@@ -4,6 +4,11 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Rentidge — Modern property management & rent payments',
   description: 'Rentidge connects landlords and tenants in one seamless platform — payments, maintenance, and accounting all in one place.',
+  verification: {
+    // Google Search Console site verification. Removing this breaks the
+    // verified-ownership status, so leave it in place permanently.
+    google: '36Z4_Nivpoya9F3QA34KR-kypMFvP8XHgNcpbQBwkSs',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
