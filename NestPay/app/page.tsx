@@ -170,6 +170,7 @@ export default function LandingPage() {
       >
         <div className="nav-logo">Rent<span>idge</span></div>
         <div className="nav-actions">
+          <a href="/blog" className="nav-link" style={{ color: '#1a1a1a', textDecoration: 'none', fontSize: 14, marginRight: 8 }}>Blog</a>
           <button className="btn-ghost-nav" onClick={() => router.push('/auth?mode=signin')}>Sign in</button>
           <button className="btn-primary-nav" onClick={() => router.push('/auth?mode=signup')}>Get started</button>
         </div>
