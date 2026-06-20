@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { InlineChart, parseAIMessage } from '@/components/charts/InlineChart'
+import DocumentsTab from '@/components/dashboard/DocumentsTab'
 
 // Official Stripe wordmark
 function StripeLogo() {
@@ -25,7 +26,7 @@ function QuickBooksLogo() {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'overview' | 'properties' | 'maintenance' | 'ai' | 'settings'>('overview')
+  const [tab, setTab] = useState<'overview' | 'properties' | 'maintenance' | 'documents' | 'ai' | 'settings'>('overview')
   const [requireLastMonth, setRequireLastMonth] = useState(false)
   const [depositCollectionMode, setDepositCollectionMode] = useState<'bundled' | 'separate'>('bundled')
   const [settingsLoading, setSettingsLoading] = useState(false)
@@ -341,9 +342,14 @@ export default function DashboardPage() {
         </div>
 
         <div className="tabs">
-          {(['overview', 'properties', 'maintenance', 'ai', 'settings'] as const).map(t => (
+          {(['overview', 'properties', 'maintenance', 'documents', 'ai', 'settings'] as const).map(t => (
             <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'overview' ? 'Payments' : t === 'properties' ? 'Properties' : t === 'maintenance' ? 'Maintenance' : t === 'ai' ? 'AI assistant' : 'Settings'}
+              {t === 'overview' ? 'Payments'
+                : t === 'properties' ? 'Properties'
+                : t === 'maintenance' ? 'Maintenance'
+                : t === 'documents' ? 'Documents'
+                : t === 'ai' ? 'AI assistant'
+                : 'Settings'}
             </button>
           ))}
         </div>
@@ -696,6 +702,10 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+        )}
+
+        {tab === 'documents' && (
+          <DocumentsTab landlordId={landlordId} properties={properties} />
         )}
 
         {tab === 'settings' && (
