@@ -41,17 +41,15 @@ type Signature = {
   created_at: string
 }
 
-type Tenant = {
-  id: string
-  full_name: string
-  unit_number: string
-  property_name: string
-}
-
 type Property = {
   id: string
   name: string
-  units?: { id: string; unit_number: string; tenants?: { id: string; full_name: string }[] }[]
+  address?: string | null
+  units?: {
+    id: string
+    unit_number: string
+    tenants?: { id: string; full_name: string }[]
+  }[]
 }
 
 export default function DocumentsTab({ landlordId, properties }: { landlordId: string; properties: Property[] }) {
@@ -63,16 +61,8 @@ export default function DocumentsTab({ landlordId, properties }: { landlordId: s
   const [assignFor, setAssignFor] = useState<string | null>(null) // tenant id we're assigning a doc to
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Flatten tenants from properties so we have a single list with context.
-  const tenants: Tenant[] = properties.flatMap(p =>
-    (p.units ?? []).flatMap(u =>
-      (u.tenants ?? []).map(t => ({
-        id: t.id,
-        full_name: t.full_name,
-        unit_number: u.unit_number,
-        property_name: p.name,
-      })),
-    ),
+  const tenantIds = properties.flatMap(p =>
+    (p.units ?? []).flatMap(u => (u.tenants ?? []).map(t => t.id)),
   )
 
   async function reload() {
@@ -84,11 +74,11 @@ export default function DocumentsTab({ landlordId, properties }: { landlordId: s
       .order('created_at', { ascending: false })
     setDocs(docsData ?? [])
 
-    if (tenants.length > 0) {
+    if (tenantIds.length > 0) {
       const { data: sigsData } = await supabase
         .from('lease_signatures')
         .select('*')
-        .in('tenant_id', tenants.map(t => t.id))
+        .in('tenant_id', tenantIds)
       setSigs(sigsData ?? [])
     } else {
       setSigs([])
@@ -263,75 +253,99 @@ export default function DocumentsTab({ landlordId, properties }: { landlordId: s
         )}
       </div>
 
-      <div className="label">Tenants ({tenants.length})</div>
-      {tenants.length === 0 ? (
+      <div className="label">Properties ({properties.length})</div>
+      {properties.length === 0 ? (
         <div className="card">
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>
-            No tenants yet. Add a property + unit + tenant in the Properties tab before assigning documents.
+            No properties yet. Add a property in the Properties tab first.
           </p>
         </div>
       ) : (
-        tenants.map(t => {
-          const tenantSigs = sigsForTenant(t.id)
-          const unassignedDocs = docs.filter(d => !tenantSigs.find(s => s.document_id === d.id))
-          return (
-            <div key={t.id} className="card" style={{ marginBottom: 16 }}>
-              <div style={{ marginBottom: 12 }}>
-                <div className="row-title">{t.full_name}</div>
-                <div className="row-sub">Unit {t.unit_number} · {t.property_name}</div>
-              </div>
-
-              {tenantSigs.length === 0 ? (
-                <p style={{ color: 'var(--text3)', fontSize: 13, marginBottom: 12 }}>No documents assigned.</p>
-              ) : (
-                <div style={{ marginBottom: 12 }}>
-                  {tenantSigs.map(s => (
-                    <div key={s.id} className="list-row" style={{ padding: '10px 0' }}>
-                      <div>
-                        <div style={{ fontSize: 14 }}>{docName(s.document_id)}</div>
-                        <div className="row-sub">
-                          <span className={`tag tag-${s.status === 'signed' ? 'paid' : s.status === 'declined' ? 'late' : 'open'}`} style={{ marginRight: 8 }}>
-                            {s.status === 'signed' ? 'Signed' : s.status === 'declined' ? 'Declined' : 'Pending'}
-                          </span>
-                          {s.required_for_move_in ? 'Required for move-in' : 'Optional'}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {s.status === 'pending' && (
-                          <>
-                            <button className="btn btn-ghost btn-sm" onClick={() => toggleRequired(s.id, s.required_for_move_in)}>
-                              {s.required_for_move_in ? 'Make optional' : 'Make required'}
-                            </button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => unassign(s.id)}>Unassign</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {assignFor === t.id ? (
-                <AssignPicker
-                  unassignedDocs={unassignedDocs}
-                  onCancel={() => setAssignFor(null)}
-                  onAssign={(docId, required) => assignDoc(docId, t.id, required)}
-                />
-              ) : (
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setAssignFor(t.id)}
-                  disabled={unassignedDocs.length === 0}
-                >
-                  + Assign document
-                </button>
-              )}
-              {unassignedDocs.length === 0 && tenantSigs.length === docs.length && docs.length > 0 && (
-                <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 8 }}>All documents already assigned.</p>
-              )}
+        properties.map(p => (
+          <div key={p.id} className="card" style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 4 }}>
+              <div className="row-title">{p.name}</div>
+              {p.address && <div className="row-sub">{p.address}</div>}
             </div>
-          )
-        })
+
+            {(p.units ?? []).length === 0 ? (
+              <p style={{ color: 'var(--text3)', fontSize: 13, marginTop: 12 }}>No units yet.</p>
+            ) : (
+              (p.units ?? []).map(u => (
+                <div key={u.id} style={{ borderTop: '1px solid var(--bg3)', paddingTop: 12, marginTop: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                    Unit {u.unit_number}
+                  </div>
+
+                  {(u.tenants ?? []).length === 0 ? (
+                    <p style={{ color: 'var(--text3)', fontSize: 13, marginTop: 4 }}>
+                      Vacant — assign a tenant in the Properties tab before assigning documents.
+                    </p>
+                  ) : (
+                    (u.tenants ?? []).map(tenant => {
+                      const tenantSigs = sigsForTenant(tenant.id)
+                      const unassignedDocs = docs.filter(d => !tenantSigs.find(s => s.document_id === d.id))
+                      return (
+                        <div key={tenant.id} style={{ marginTop: 8 }}>
+                          <div className="row-sub" style={{ marginBottom: 8 }}>{tenant.full_name}</div>
+
+                          {tenantSigs.length === 0 ? (
+                            <p style={{ color: 'var(--text3)', fontSize: 13, marginBottom: 8 }}>No documents assigned.</p>
+                          ) : (
+                            <div style={{ marginBottom: 8 }}>
+                              {tenantSigs.map(s => (
+                                <div key={s.id} className="list-row" style={{ padding: '8px 0' }}>
+                                  <div>
+                                    <div style={{ fontSize: 14 }}>{docName(s.document_id)}</div>
+                                    <div className="row-sub">
+                                      <span className={`tag tag-${s.status === 'signed' ? 'paid' : s.status === 'declined' ? 'late' : 'open'}`} style={{ marginRight: 8 }}>
+                                        {s.status === 'signed' ? 'Signed' : s.status === 'declined' ? 'Declined' : 'Pending'}
+                                      </span>
+                                      {s.required_for_move_in ? 'Required for move-in' : 'Optional'}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    {s.status === 'pending' && (
+                                      <>
+                                        <button className="btn btn-ghost btn-sm" onClick={() => toggleRequired(s.id, s.required_for_move_in)}>
+                                          {s.required_for_move_in ? 'Make optional' : 'Make required'}
+                                        </button>
+                                        <button className="btn btn-ghost btn-sm" onClick={() => unassign(s.id)}>Unassign</button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {assignFor === tenant.id ? (
+                            <AssignPicker
+                              unassignedDocs={unassignedDocs}
+                              onCancel={() => setAssignFor(null)}
+                              onAssign={(docId, required) => assignDoc(docId, tenant.id, required)}
+                            />
+                          ) : (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setAssignFor(tenant.id)}
+                              disabled={unassignedDocs.length === 0}
+                            >
+                              + Assign document
+                            </button>
+                          )}
+                          {unassignedDocs.length === 0 && tenantSigs.length === docs.length && docs.length > 0 && (
+                            <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 8 }}>All documents already assigned.</p>
+                          )}
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ))
       )}
     </div>
   )
