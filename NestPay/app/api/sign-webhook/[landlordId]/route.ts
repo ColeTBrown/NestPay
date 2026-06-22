@@ -1,27 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { esign } from '@/lib/esign'
+import { esignForLandlord, ESignNotConnectedError } from '@/lib/esign'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-// E-sign webhook receiver. Dispatches to the active provider for
-// signature verification + event parsing, then applies the same
-// downstream state changes regardless of which provider sent it.
+// E-sign webhook receiver, scoped to a single landlord via URL path.
 //
-// SignWell posts JSON with the HMAC signature inside the body
-// (payload.event.hash). Other providers (Dropbox Sign) use a separate
-// header — the provider's verifyWebhook() reads whatever it needs.
+// Why URL-parameterized: in the BYO-account model each landlord has
+// their own SignWell webhook secret. We need to know whose secret to
+// verify with before we trust the payload. The landlord registers
+// /api/sign-webhook/<their_landlord_id> as their callback URL when
+// they set up the connection — see the dashboard Settings UI.
 //
-// We:
-//   1. Read the raw body
-//   2. Verify the signature via the provider
-//   3. Map the event to one of our normalized WebhookEventType values
-//   4. On all_signed / signed: download the signed PDF and stash it
-//      in the signed-leases bucket
+// Verification:
+//   - Look up the landlord and load their credentials
+//   - Call provider.verifyWebhook with the provider-scoped secret
+//   - If verification fails, return 401 without touching state
+//
+// On signed events: download the PDF, stash in signed-leases bucket
+// under the landlord's folder, flip the lease_signatures row to 'signed'.
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: { landlordId: string } }) {
+  const landlordId = params.landlordId
+  if (!landlordId) {
+    return new NextResponse('missing landlord id', { status: 400 })
+  }
+
   let rawJson = ''
   try {
-    // SignWell sends application/json. The multipart branch is here for
-    // providers that prefer form-encoded payloads (e.g. Dropbox Sign).
+    // SignWell sends application/json. The multipart branch covers
+    // providers that prefer form-encoded payloads.
     const contentType = req.headers.get('content-type') ?? ''
     if (contentType.includes('multipart/form-data')) {
       const form = await req.formData()
@@ -37,11 +43,25 @@ export async function POST(req: NextRequest) {
     return new NextResponse('bad request', { status: 400 })
   }
 
-  // SignWell doesn't use a header — Dropbox Sign uses x-hellosign-signature.
-  // Pass both candidates; the provider picks what it needs.
-  const sigHeader = req.headers.get('x-signwell-signature') ?? req.headers.get('x-hellosign-signature')
+  // Resolve the landlord's e-sign provider before verification — we
+  // need their credentials to check the HMAC.
+  let esign
+  try {
+    esign = await esignForLandlord(landlordId)
+  } catch (err) {
+    if (err instanceof ESignNotConnectedError) {
+      // The landlord disconnected their account but SignWell still has
+      // their old webhook URL configured. Return 410 Gone so they get
+      // a clear signal to remove it.
+      return new NextResponse('landlord no longer connected', { status: 410 })
+    }
+    console.error('[sign-webhook] esignForLandlord error:', err)
+    return new NextResponse('lookup error', { status: 500 })
+  }
+
+  const sigHeader = req.headers.get('x-signwell-signature')
   if (!esign.verifyWebhook(rawJson, sigHeader)) {
-    console.warn('[sign-webhook] signature verification failed')
+    console.warn('[sign-webhook] signature verification failed for landlord', landlordId)
     return new NextResponse('bad signature', { status: 401 })
   }
 
@@ -50,11 +70,8 @@ export async function POST(req: NextRequest) {
   try {
     switch (event.type) {
       case 'signature_request_all_signed':
-        await handleAllSigned(event.signatureRequestId)
-        break
       case 'signature_request_signed':
-        // Single-signer flow: same as all_signed for our purposes
-        await handleAllSigned(event.signatureRequestId)
+        await handleAllSigned(event.signatureRequestId, landlordId, esign)
         break
       case 'signature_request_declined':
         await markStatus(event.signatureRequestId, 'declined')
@@ -63,19 +80,16 @@ export async function POST(req: NextRequest) {
         await markStatus(event.signatureRequestId, 'expired')
         break
       case 'template_created':
-        // No-op — we already stored the templateId when we initiated the
-        // embedded template draft. Logging only.
+        // Already stored at template draft creation time. Logging only.
         console.log('[sign-webhook] template_created:', event.templateId)
         break
       default:
-        // Ignore — many of Dropbox Sign's events (account.confirmed, etc)
-        // don't affect us. Still ack so they stop retrying.
+        // Many provider events (account.confirmed etc.) aren't relevant.
+        // Still ack so they stop retrying.
         break
     }
   } catch (err) {
     console.error('[sign-webhook] handler error for', event.type, err)
-    // Return 500 so Dropbox Sign retries — better than swallowing a
-    // permanent inconsistency.
     return new NextResponse('handler error', { status: 500 })
   }
 
@@ -90,21 +104,16 @@ async function markStatus(signatureRequestId: string | undefined, status: string
     .eq('signature_request_id', signatureRequestId)
 }
 
-async function handleAllSigned(signatureRequestId: string | undefined) {
+async function handleAllSigned(
+  signatureRequestId: string | undefined,
+  landlordId: string,
+  esign: Awaited<ReturnType<typeof esignForLandlord>>,
+) {
   if (!signatureRequestId) return
 
-  // Look up our signature row so we know which landlord folder to use.
   const { data: sig, error } = await supabaseAdmin
     .from('lease_signatures')
-    .select(`
-      id,
-      tenant_id,
-      tenants:tenant_id (
-        units:unit_id (
-          properties:property_id ( landlord_id )
-        )
-      )
-    `)
+    .select('id')
     .eq('signature_request_id', signatureRequestId)
     .single()
 
@@ -113,16 +122,10 @@ async function handleAllSigned(signatureRequestId: string | undefined) {
     return
   }
 
-  const landlordId = (sig as any).tenants?.units?.properties?.landlord_id
-  if (!landlordId) {
-    console.warn('[sign-webhook] could not resolve landlord for signature', sig.id)
-    return
-  }
-
-  // Download from the provider.
   const { pdfBytes } = await esign.downloadSignedFile(signatureRequestId)
 
-  // Stash in signed-leases bucket. Path: {landlord_id}/{signature_id}.pdf
+  // signed-leases bucket layout: {landlord_id}/{signature_id}.pdf
+  // The landlord folder is the same one the storage RLS policy uses.
   const path = `${landlordId}/${sig.id}.pdf`
   const { error: upErr } = await supabaseAdmin.storage
     .from('signed-leases')
@@ -138,7 +141,6 @@ async function handleAllSigned(signatureRequestId: string | undefined) {
       status: 'signed',
       signed_at: new Date().toISOString(),
       signed_file_path: path,
-      // Clear the cached sign URL — no longer needed
       tenant_sign_url: null,
       tenant_sign_url_expires_at: null,
     })
