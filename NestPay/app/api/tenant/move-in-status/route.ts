@@ -53,6 +53,16 @@ export async function GET() {
     }
   }
 
+  // Count unsigned required-for-move-in documents. The portal shows a
+  // pre-payment gate when this is > 0 so the tenant signs first instead
+  // of clicking Pay and bouncing back with an error.
+  const { count: unsignedRequiredCount } = await supabaseAdmin
+    .from('lease_signatures')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', auth.tenantId)
+    .eq('required_for_move_in', true)
+    .neq('status', 'signed')
+
   return NextResponse.json({
     requireLastMonth,
     moveInPaid: tenant.move_in_paid === true,
@@ -65,5 +75,7 @@ export async function GET() {
     securityDepositPaid: tenant.security_deposit_paid === true,
     securityDepositHeldAmount: Number((tenant as any).security_deposit_held_amount ?? 0),
     depositCollectionMode,
+    // Document gate
+    unsignedRequiredDocsCount: unsignedRequiredCount ?? 0,
   })
 }
