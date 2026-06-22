@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { esign } from '@/lib/esign'
+import { esignForLandlord, ESignNotConnectedError } from '@/lib/esign'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireTenant } from '@/lib/auth'
 
 // Returns an embedded sign URL the portal can drop into an iframe via
-// the Dropbox Sign embedded JS SDK. URLs are short-lived (~5 min) so
-// we cache them on the row and re-fetch only when expired.
+// the e-sign provider's JS SDK. Cached on the row at creation time
+// (SignWell returns the URL synchronously). This route is the refresh
+// path for when the cached URL expires.
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireTenant()
@@ -26,7 +27,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       signature_request_id,
       tenant_sign_url,
       tenant_sign_url_expires_at,
-      lease_documents:document_id ( provider )
+      lease_documents:document_id ( provider, landlord_id )
     `)
     .eq('id', sigId)
     .single()
@@ -54,28 +55,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ signUrl: cached })
   }
 
-  // Fetch a fresh embedded sign URL from the provider. We need the
-  // signer-side id (Dropbox Sign returns one id per signer in the
-  // original signature request response). For simple one-signer leases
-  // the signer id == the first signature id.
-  const { data: sr } = await supabaseAdmin
-    .from('lease_signatures')
-    .select('signature_request_id')
-    .eq('id', sigId)
-    .single()
-  if (!sr?.signature_request_id) {
-    return NextResponse.json({ error: 'No signature request id' }, { status: 500 })
+  // Refresh path — fetch a fresh URL from the provider scoped to the
+  // landlord who owns the document. For SignWell, signer id == document id.
+  const landlordId = (sig as any).lease_documents?.landlord_id
+  if (!landlordId) {
+    return NextResponse.json({ error: 'Could not resolve landlord for this signature' }, { status: 500 })
   }
-
-  // The signer id is the signature_request_id's first signer. For
-  // multi-signer flows we'd store this on the row when creating the
-  // request; for v1 (tenant-only) signer id == signature_request_id's
-  // first signature, which equals the signature_request_id in
-  // Dropbox Sign's single-signer template flow.
-  // TODO when adding co-signer support: store signer_id on the row.
-  const signerId = sr.signature_request_id
+  const signerId = sig.signature_request_id
 
   try {
+    const esign = await esignForLandlord(landlordId)
     const { signUrl, expiresAt } = await esign.getEmbeddedSignUrl(signerId)
     await supabaseAdmin
       .from('lease_signatures')
@@ -87,6 +76,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       .eq('id', sigId)
     return NextResponse.json({ signUrl })
   } catch (err: any) {
+    if (err instanceof ESignNotConnectedError) {
+      return NextResponse.json(
+        { error: 'Landlord has not connected their e-signature provider. Please contact them.', code: 'esign_not_connected' },
+        { status: 412 },
+      )
+    }
     console.error('[tenant/sign-url] provider error:', err)
     return NextResponse.json({ error: err?.message ?? 'Provider error' }, { status: 502 })
   }

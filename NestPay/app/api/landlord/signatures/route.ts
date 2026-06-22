@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { esign } from '@/lib/esign'
+import { esignForLandlord, ESignNotConnectedError } from '@/lib/esign'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
 
@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const esign = await esignForLandlord(auth.landlordId)
     const { signatureRequestId, initialSignUrl } = await esign.createSignatureRequest({
       templateId: doc.template_id,
       fileUrl,
@@ -135,6 +136,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ id: sigRow.id, signatureRequestId })
   } catch (err: any) {
+    if (err instanceof ESignNotConnectedError) {
+      // Tear down the pending row so the assignment isn't half-committed.
+      await supabaseAdmin.from('lease_signatures').delete().eq('id', sigRow.id)
+      return NextResponse.json(
+        { error: 'Connect SignWell first in Settings before assigning documents.', code: 'esign_not_connected' },
+        { status: 412 },
+      )
+    }
     console.error('[landlord/signatures] provider error:', err)
     // Leave the row in 'pending' state so the landlord can retry; surface
     // the underlying error in the response body for debugging.

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { InlineChart, parseAIMessage } from '@/components/charts/InlineChart'
 import DocumentsTab from '@/components/dashboard/DocumentsTab'
+import EsignConnection from '@/components/dashboard/EsignConnection'
 
 // Official Stripe wordmark
 function StripeLogo() {
@@ -710,6 +711,11 @@ export default function DashboardPage() {
 
         {tab === 'settings' && (
           <div>
+            <div className="label">E-Signature provider</div>
+            <div style={{ marginBottom: 24 }}>
+              <EsignConnection />
+            </div>
+
             <div className="label">Rent collection</div>
             <div className="card" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>

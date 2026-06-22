@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { esign } from '@/lib/esign'
+import { esignForLandlord, ESignNotConnectedError } from '@/lib/esign'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireLandlord } from '@/lib/auth'
 
 // Initiates the embedded template editor for a library document.
 // The landlord drags merge fields onto their uploaded PDF inside an
-// iframe rendered by the Dropbox Sign JS SDK on the dashboard.
+// iframe rendered by the e-sign provider's JS SDK on the dashboard.
 //
-// Returns: { editUrl, clientId, templateId }
-//   editUrl   — iframe src for the field editor
-//   clientId  — needed by the JS SDK to validate the embedded session
-//   templateId — saved on lease_documents so signature requests can
-//                reference this template later
+// Returns: { editUrl, templateId }
 
 const FIELD_SUGGESTIONS = [
   { name: 'tenant_name', label: 'Tenant name', type: 'text' as const },
@@ -44,7 +40,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
   if (doc.template_id) {
     return NextResponse.json(
-      { error: 'Template already set up — edit it from the Dropbox Sign dashboard', templateId: doc.template_id },
+      { error: 'Template already set up — edit it from your SignWell dashboard', templateId: doc.template_id },
       { status: 409 },
     )
   }
@@ -61,6 +57,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   try {
+    const esign = await esignForLandlord(auth.landlordId)
     const { templateId, editUrl } = await esign.createTemplate({
       fileUrl: signed.signedUrl,
       title: doc.name,
@@ -75,6 +72,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json({ editUrl, templateId })
   } catch (err: any) {
+    if (err instanceof ESignNotConnectedError) {
+      return NextResponse.json(
+        { error: 'Connect SignWell first in Settings before setting up merge fields.', code: 'esign_not_connected' },
+        { status: 412 },
+      )
+    }
     console.error('[landlord/template] provider error:', err)
     return NextResponse.json({ error: err?.message ?? 'Provider error' }, { status: 502 })
   }
