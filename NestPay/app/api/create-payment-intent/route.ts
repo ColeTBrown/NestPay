@@ -69,6 +69,29 @@ export async function POST(req: NextRequest) {
       landlordProfile.deposit_collection_mode === 'separate' ? 'separate' : 'bundled'
     const stripeAccountId = landlordProfile.stripe_account_id
 
+    // ---------- move-in document gate ----------
+    // Block move_in and security_deposit payments when the tenant has any
+    // documents flagged required_for_move_in that haven't been signed yet.
+    // Monthly rent isn't gated — once they've moved in, signing has happened.
+    if (paymentType === 'move_in' || paymentType === 'security_deposit') {
+      const { data: unsigned } = await supabaseAdmin
+        .from('lease_signatures')
+        .select('id, document_id')
+        .eq('tenant_id', tenantId)
+        .eq('required_for_move_in', true)
+        .neq('status', 'signed')
+      if (unsigned && unsigned.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Sign required documents before paying',
+            unsignedCount: unsigned.length,
+            code: 'documents_required',
+          },
+          { status: 409 },
+        )
+      }
+    }
+
     // ---------- move-in branch ----------
     // Charges 2× monthly_rent, optionally plus the security deposit if the
     // landlord uses bundled mode and the deposit hasn't already been paid.

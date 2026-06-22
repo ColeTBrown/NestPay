@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { useRouter } from 'next/navigation'
+import DocumentsSection from '@/components/portal/DocumentsSection'
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
 
@@ -141,7 +142,7 @@ function OnboardingForm({ userId, email, onComplete }: { userId: string, email: 
 
 export default function PortalPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'pay' | 'maintenance' | 'history'>('pay')
+  const [tab, setTab] = useState<'pay' | 'documents' | 'maintenance' | 'history'>('pay')
   const [tenant, setTenant] = useState<any>(null)
   const [unit, setUnit] = useState<any>(null)
   const [payments, setPayments] = useState<any[]>([])
@@ -165,6 +166,7 @@ export default function PortalPage() {
     securityDepositPaid: boolean
     securityDepositHeldAmount: number
     depositCollectionMode: 'bundled' | 'separate'
+    unsignedRequiredDocsCount: number
   } | null>(null)
   const [coveredByDeposit, setCoveredByDeposit] = useState(false)
 
@@ -250,6 +252,10 @@ export default function PortalPage() {
       body: JSON.stringify({ paymentType: 'move_in', saveCard: true }),
     })
     const data = await res.json()
+    if (data.code === 'documents_required') {
+      setTab('documents')
+      return
+    }
     if (data.clientSecret) setClientSecret(data.clientSecret)
   }
 
@@ -261,6 +267,10 @@ export default function PortalPage() {
       body: JSON.stringify({ paymentType: 'security_deposit', saveCard: true }),
     })
     const data = await res.json()
+    if (data.code === 'documents_required') {
+      setTab('documents')
+      return
+    }
     if (data.clientSecret) setClientSecret(data.clientSecret)
   }
 
@@ -343,9 +353,12 @@ export default function PortalPage() {
         </div>
 
         <div className="tabs">
-          {(['pay', 'maintenance', 'history'] as const).map(t => (
+          {(['pay', 'documents', 'maintenance', 'history'] as const).map(t => (
             <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'pay' ? 'Rent' : t === 'maintenance' ? 'Maintenance' : 'History'}
+              {t === 'pay' ? 'Rent'
+                : t === 'documents' ? `Documents${(moveInStatus?.unsignedRequiredDocsCount ?? 0) > 0 ? ` (${moveInStatus!.unsignedRequiredDocsCount})` : ''}`
+                : t === 'maintenance' ? 'Maintenance'
+                : 'History'}
             </button>
           ))}
         </div>
@@ -370,8 +383,24 @@ export default function PortalPage() {
             (moveInStatus.depositCollectionMode === 'separate' || !moveInStatus.requireLastMonth)
           )
 
+          const unsignedDocs = moveInStatus?.unsignedRequiredDocsCount ?? 0
+          const docsBlockPayment = unsignedDocs > 0 && (needsMoveIn || needsSeparateDeposit)
+
           return (
           <div>
+            {docsBlockPayment && (
+              <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid var(--yellow, #FACC15)' }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  Sign {unsignedDocs} document{unsignedDocs === 1 ? '' : 's'} before paying
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 12 }}>
+                  Your landlord requires {unsignedDocs === 1 ? 'this document' : 'these documents'} signed before move-in payment can be processed.
+                </p>
+                <button className="btn btn-primary btn-sm" onClick={() => setTab('documents')}>
+                  Go to documents
+                </button>
+              </div>
+            )}
             {needsMoveIn ? (
               clientSecret ? (
                 <div className="card">
@@ -477,6 +506,16 @@ export default function PortalPage() {
           </div>
           )
         })()}
+
+        {tab === 'documents' && (
+          <div>
+            <div className="label">Documents to sign</div>
+            <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>
+              Sign here in the portal — no email links, no extra accounts. Your landlord is notified automatically.
+            </p>
+            <DocumentsSection onChange={loadMoveInStatus} />
+          </div>
+        )}
 
         {tab === 'maintenance' && (
           <div>

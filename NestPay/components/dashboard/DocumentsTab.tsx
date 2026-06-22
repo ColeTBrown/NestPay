@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { openEmbedded } from '@/lib/esign/embed'
 
 // Documents tab on the landlord dashboard. Lets the landlord:
 //   - Upload PDFs/DOCX files to their library (templates and one-off uploads)
@@ -28,6 +29,8 @@ type Doc = {
   file_size_bytes: number | null
   mime_type: string | null
   is_template: boolean
+  template_id: string | null
+  provider: string
   created_at: string
 }
 
@@ -160,16 +163,44 @@ export default function DocumentsTab({ landlordId, properties }: { landlordId: s
   }
 
   async function assignDoc(documentId: string, tenantId: string, required: boolean) {
-    const { error } = await supabase
-      .from('lease_signatures')
-      .insert({ tenant_id: tenantId, document_id: documentId, required_for_move_in: required })
-    if (error) {
-      // Most likely the unique (tenant_id, document_id) constraint — already assigned.
-      alert(error.message.includes('duplicate') ? 'That document is already assigned to this tenant.' : error.message)
+    // Goes through the server so the e-sign signature request is created
+    // alongside the lease_signatures row. The server handles validation,
+    // signed-URL generation for the PDF, and merge-field population.
+    const res = await fetch('/api/landlord/signatures', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ documentId, tenantId, requiredForMoveIn: required }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      alert(data.error ?? 'Could not assign document')
+      // If the row was created but the provider call failed, still reload
+      // so the landlord sees the pending row and can retry.
+      if (data.id) await reload()
       return
     }
     setAssignFor(null)
     await reload()
+  }
+
+  async function setupMergeFields(docId: string) {
+    try {
+      const res = await fetch(`/api/landlord/documents/${docId}/template`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error ?? 'Could not start template setup')
+        return
+      }
+      openEmbedded({
+        url: data.editUrl,
+        clientId: data.clientId,
+        testMode: true,
+        onFinish: () => reload(),
+        onError: e => alert(`Template editor error: ${(e as any)?.message ?? e}`),
+      })
+    } catch (err: any) {
+      alert(err?.message ?? 'Could not open template editor')
+    }
   }
 
   async function toggleRequired(sigId: string, current: boolean) {
@@ -242,9 +273,17 @@ export default function DocumentsTab({ landlordId, properties }: { landlordId: s
                   {(d.mime_type || '').includes('pdf') ? 'PDF' : (d.mime_type || '').includes('word') ? 'DOCX' : 'File'}
                   {d.file_size_bytes ? ` · ${fmtSize(d.file_size_bytes)}` : ''}
                   {' · '}{tenantCountFor(d.id)} tenant{tenantCountFor(d.id) === 1 ? '' : 's'} assigned
+                  {d.template_id && (
+                    <span style={{ marginLeft: 8, color: 'var(--green)' }}>· Merge fields set</span>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
+                {!d.template_id && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => setupMergeFields(d.id)}>
+                    Setup merge fields
+                  </button>
+                )}
                 <button className="btn btn-ghost btn-sm" onClick={() => renameDoc(d.id, d.name)}>Rename</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => deleteDoc(d.id, d.file_path)}>Delete</button>
               </div>
