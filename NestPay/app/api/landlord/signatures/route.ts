@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { signatureRequestId } = await esign.createSignatureRequest({
+    const { signatureRequestId, initialSignUrl } = await esign.createSignatureRequest({
       templateId: doc.template_id,
       fileUrl,
       title: doc.name,
@@ -119,11 +119,17 @@ export async function POST(req: NextRequest) {
       fieldValues: doc.template_id ? fieldValues : undefined,
     })
 
+    // SignWell returns the embedded sign URL synchronously at creation
+    // time — cache it on the row so the tenant's Sign click is instant.
+    // Providers that don't (e.g. Dropbox Sign) leave initialSignUrl null
+    // and the portal falls back to /api/tenant/signatures/[id]/sign-url.
     await supabaseAdmin
       .from('lease_signatures')
       .update({
         signature_request_id: signatureRequestId,
         status: 'awaiting_signature',
+        tenant_sign_url: initialSignUrl?.signUrl ?? null,
+        tenant_sign_url_expires_at: initialSignUrl?.expiresAt.toISOString() ?? null,
       })
       .eq('id', sigRow.id)
 

@@ -193,8 +193,6 @@ export default function DocumentsTab({ landlordId, properties }: { landlordId: s
       }
       openEmbedded({
         url: data.editUrl,
-        clientId: data.clientId,
-        testMode: true,
         onFinish: () => reload(),
         onError: e => alert(`Template editor error: ${(e as any)?.message ?? e}`),
       })

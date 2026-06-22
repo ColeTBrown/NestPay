@@ -2,27 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { esign } from '@/lib/esign'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-// Dropbox Sign webhook receiver.
+// E-sign webhook receiver. Dispatches to the active provider for
+// signature verification + event parsing, then applies the same
+// downstream state changes regardless of which provider sent it.
 //
-// Dropbox Sign sends events as multipart/form-data with a single "json"
-// field containing the event payload. We:
-//   1. Parse the payload
-//   2. Verify the HMAC via the provider's verifyWebhook()
-//   3. Map known event types to lease_signatures status updates
-//   4. On all_signed: download the signed PDF + audit cert and stash
-//      them in the signed-leases bucket
+// SignWell posts JSON with the HMAC signature inside the body
+// (payload.event.hash). Other providers (Dropbox Sign) use a separate
+// header — the provider's verifyWebhook() reads whatever it needs.
 //
-// Dropbox Sign expects an HTTP 200 with the literal body "Hello API
-// Event Received" — anything else they treat as a delivery failure
-// and retry. (See https://developers.hellosign.com/docs/webhooks.)
-
-const ACK_BODY = 'Hello API Event Received'
+// We:
+//   1. Read the raw body
+//   2. Verify the signature via the provider
+//   3. Map the event to one of our normalized WebhookEventType values
+//   4. On all_signed / signed: download the signed PDF and stash it
+//      in the signed-leases bucket
 
 export async function POST(req: NextRequest) {
   let rawJson = ''
   try {
-    // Try multipart first (Dropbox Sign's default). Fall back to JSON
-    // body for providers that POST application/json directly.
+    // SignWell sends application/json. The multipart branch is here for
+    // providers that prefer form-encoded payloads (e.g. Dropbox Sign).
     const contentType = req.headers.get('content-type') ?? ''
     if (contentType.includes('multipart/form-data')) {
       const form = await req.formData()
@@ -38,7 +37,10 @@ export async function POST(req: NextRequest) {
     return new NextResponse('bad request', { status: 400 })
   }
 
-  if (!esign.verifyWebhook(rawJson, req.headers.get('x-hellosign-signature'))) {
+  // SignWell doesn't use a header — Dropbox Sign uses x-hellosign-signature.
+  // Pass both candidates; the provider picks what it needs.
+  const sigHeader = req.headers.get('x-signwell-signature') ?? req.headers.get('x-hellosign-signature')
+  if (!esign.verifyWebhook(rawJson, sigHeader)) {
     console.warn('[sign-webhook] signature verification failed')
     return new NextResponse('bad signature', { status: 401 })
   }
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse('handler error', { status: 500 })
   }
 
-  return new NextResponse(ACK_BODY, { status: 200 })
+  return new NextResponse('ok', { status: 200 })
 }
 
 async function markStatus(signatureRequestId: string | undefined, status: string) {

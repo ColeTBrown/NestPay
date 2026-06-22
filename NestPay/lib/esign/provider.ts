@@ -19,7 +19,7 @@
 //   - "Embedded" everywhere = the iframe stays inside Rentidge; the
 //     tenant never sees the provider's domain.
 
-export type ESignProviderName = 'dropbox_sign' | 'docusign'
+export type ESignProviderName = 'signwell' | 'dropbox_sign' | 'docusign'
 
 export type TemplateField = {
   name: string // matches placeholder in PDF, e.g. 'tenant_name'
@@ -60,6 +60,13 @@ export type CreateSignatureRequestInput = {
 export type CreateSignatureRequestResult = {
   signatureRequestId: string
   signerId: string
+  /**
+   * Some providers (SignWell) return the embedded sign URL synchronously
+   * at creation time; others (Dropbox Sign) require a separate call to
+   * mint a short-lived URL. When present, the caller should cache this
+   * on the row instead of immediately calling getEmbeddedSignUrl().
+   */
+  initialSignUrl?: { signUrl: string; expiresAt: Date } | null
 }
 
 export type EmbeddedSignUrlResult = {

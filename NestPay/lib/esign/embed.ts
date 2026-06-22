@@ -1,61 +1,83 @@
-// Thin client-side helper around hellosign-embedded.
-//
-// Why a wrapper: we want a single place to define the test-mode flag,
-// event handling, and cleanup so every call site (dashboard merge-fields
-// setup + portal sign widget) doesn't repeat the same boilerplate.
-//
-// This only runs in the browser. Server code must not import it.
-
 'use client'
 
-// hellosign-embedded touches `window` at module evaluation, so we import
-// it dynamically on first use rather than at the top of the file. This
-// keeps the module safe to import from server-rendered components.
+// Client-side helper for opening SignWell's embedded signing iframe.
+//
+// SignWell ships a tiny JS library at https://static.signwell.com/assets/embedded.js
+// that exposes a global `SignWellEmbed` class. We load it on demand the
+// first time openEmbedded() is called so we don't add a script tag to
+// every page.
+
+const SDK_URL = 'https://static.signwell.com/assets/embedded.js'
+
+declare global {
+  interface Window {
+    SignWellEmbed?: any
+  }
+}
+
+let sdkPromise: Promise<any> | null = null
+
+function loadSdk(): Promise<any> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('Server-side'))
+  if (window.SignWellEmbed) return Promise.resolve(window.SignWellEmbed)
+  if (sdkPromise) return sdkPromise
+  sdkPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = SDK_URL
+    script.async = true
+    script.onload = () => {
+      if (window.SignWellEmbed) resolve(window.SignWellEmbed)
+      else reject(new Error('SignWell SDK loaded but global is missing'))
+    }
+    script.onerror = () => reject(new Error('Failed to load SignWell embedded SDK'))
+    document.head.appendChild(script)
+  })
+  return sdkPromise
+}
 
 type OpenOpts = {
   url: string
-  clientId: string
-  /** Pass true when running against a Dropbox Sign sandbox / dev account */
+  /** Unused for SignWell — kept for API parity with other providers. */
+  clientId?: string
+  /** Unused for SignWell — test mode is decided by the document itself. */
   testMode?: boolean
   onFinish?: () => void
   onCancel?: () => void
   onError?: (err: unknown) => void
 }
 
-let activeClient: any = null
+let activeWidget: any = null
 
-export async function openEmbedded({ url, clientId, testMode = true, onFinish, onCancel, onError }: OpenOpts) {
-  // Tear down any previous instance so events don't double-fire.
-  if (activeClient) {
-    try { activeClient.close() } catch {}
-    activeClient = null
+export async function openEmbedded({ url, onFinish, onCancel, onError }: OpenOpts) {
+  if (activeWidget) {
+    try { activeWidget.close() } catch {}
+    activeWidget = null
   }
 
-  // Dynamic import — the SDK references `window` at top level and would
-  // break server-side rendering if imported statically.
-  const HelloSign = (await import('hellosign-embedded')).default
-  const client: any = new HelloSign({ clientId })
-  activeClient = client
-
-  // The SDK fires different events for sign vs. template create.
-  // We map them both to onFinish.
-  client.on('sign', () => onFinish?.())
-  client.on('createTemplate', () => onFinish?.())
-  client.on('cancel', () => onCancel?.())
-  client.on('error', (e: any) => onError?.(e))
-  client.on('close', () => {
-    if (activeClient === client) activeClient = null
-  })
-
-  client.open(url, {
-    testMode,
-    skipDomainVerification: testMode,
-  })
+  try {
+    const SignWellEmbed = await loadSdk()
+    activeWidget = new SignWellEmbed({
+      url,
+      events: {
+        completed: () => onFinish?.(),
+        // SignWell also fires `signed` for in-progress signers in a
+        // multi-signer flow. We only have single-signer flows so far,
+        // so both events should be treated as finished.
+        signed: () => onFinish?.(),
+        declined: () => onCancel?.(),
+        closed: () => onCancel?.(),
+        error: (e: any) => onError?.(e),
+      },
+    })
+    activeWidget.open()
+  } catch (err) {
+    onError?.(err)
+  }
 }
 
 export function closeEmbedded() {
-  if (activeClient) {
-    try { activeClient.close() } catch {}
-    activeClient = null
+  if (activeWidget) {
+    try { activeWidget.close() } catch {}
+    activeWidget = null
   }
 }

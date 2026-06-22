@@ -73,11 +73,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       .update({ template_id: templateId })
       .eq('id', docId)
 
-    return NextResponse.json({
-      editUrl,
-      templateId,
-      clientId: process.env.DROPBOX_SIGN_CLIENT_ID,
-    })
+    return NextResponse.json({ editUrl, templateId })
   } catch (err: any) {
     console.error('[landlord/template] provider error:', err)
     return NextResponse.json({ error: err?.message ?? 'Provider error' }, { status: 502 })

@@ -69,8 +69,6 @@ export default function DocumentsSection({ onChange }: { onChange?: () => void }
       }
       openEmbedded({
         url: data.signUrl,
-        clientId: data.clientId,
-        testMode: true,
         onFinish: async () => {
           // The webhook updates the row to 'signed' once Dropbox Sign
           // processes the signature on their end. Refresh after a short

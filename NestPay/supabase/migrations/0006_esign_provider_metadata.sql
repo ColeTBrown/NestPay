@@ -4,7 +4,7 @@
 --          for final signed PDFs + audit trail certificates.
 --
 -- Design choices:
---   - lease_documents.provider: text column defaulting to 'dropbox_sign'.
+--   - lease_documents.provider: text column defaulting to 'signwell'.
 --     Future-proofing for the "let landlord pick their e-sign provider"
 --     follow-up (DocuSign etc.) without forcing a schema migration when
 --     that lands. The abstraction layer in lib/esign reads this column
@@ -32,7 +32,7 @@ begin;
 -- lease_documents: e-sign provider + template id
 ------------------------------------------------------------------------
 alter table lease_documents
-  add column if not exists provider text not null default 'dropbox_sign',
+  add column if not exists provider text not null default 'signwell',
   add column if not exists template_id text;
 
 ------------------------------------------------------------------------

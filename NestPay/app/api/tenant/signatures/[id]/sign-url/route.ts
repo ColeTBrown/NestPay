@@ -51,10 +51,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const cached = sig.tenant_sign_url
   const cachedExp = sig.tenant_sign_url_expires_at ? new Date(sig.tenant_sign_url_expires_at).getTime() : 0
   if (cached && cachedExp - Date.now() > 30_000) {
-    return NextResponse.json({
-      signUrl: cached,
-      clientId: process.env.DROPBOX_SIGN_CLIENT_ID,
-    })
+    return NextResponse.json({ signUrl: cached })
   }
 
   // Fetch a fresh embedded sign URL from the provider. We need the
@@ -88,10 +85,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         status: 'awaiting_signature',
       })
       .eq('id', sigId)
-    return NextResponse.json({
-      signUrl,
-      clientId: process.env.DROPBOX_SIGN_CLIENT_ID,
-    })
+    return NextResponse.json({ signUrl })
   } catch (err: any) {
     console.error('[tenant/sign-url] provider error:', err)
     return NextResponse.json({ error: err?.message ?? 'Provider error' }, { status: 502 })
